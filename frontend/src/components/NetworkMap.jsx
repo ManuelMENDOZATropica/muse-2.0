@@ -73,10 +73,12 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
             if (prev) return { ...prev, label, degree: d, radius, palette, data: n.data };
             const angle = Math.random() * Math.PI * 2;
             const dist  = 80 + Math.random() * 200;
+            const startX = n.position?.x ?? (Math.cos(angle) * dist);
+            const startY = n.position?.y ?? (Math.sin(angle) * dist);
             return {
               id: n.id, label, degree: d, radius, palette, data: n.data,
-              x: Math.cos(angle) * dist,
-              y: Math.sin(angle) * dist,
+              x: startX,
+              y: startY,
               vx: (Math.random()-.5)*2,
               vy: (Math.random()-.5)*2,
             };
@@ -299,7 +301,7 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
         p.mousePressed = (e) => {
           dragDist = 0;
           if (p.mouseButton !== p.LEFT || e.ctrlKey || e.button === 2) {
-            return false;
+            return;
           }
           // Reset view button
           if (isResetBtn()) {
