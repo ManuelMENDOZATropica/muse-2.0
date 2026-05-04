@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import p5 from 'p5/lib/p5.min.js';
+import p5 from 'p5';
 import { getUserPalette } from './UserColorPicker';
 
 function hexRgb(hex) {
