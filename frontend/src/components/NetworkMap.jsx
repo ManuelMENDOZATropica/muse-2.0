@@ -68,11 +68,11 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
             // Use centralized palette (reads from localStorage if user changed color)
             const palette = getUserPalette(uid);
             const prev    = byId[n.id];
-            if (prev) return { ...prev, label, degree: d, radius, palette };
+            if (prev) return { ...prev, label, degree: d, radius, palette, data: n.data };
             const angle = Math.random() * Math.PI * 2;
             const dist  = 80 + Math.random() * 200;
             return {
-              id: n.id, label, degree: d, radius, palette,
+              id: n.id, label, degree: d, radius, palette, data: n.data,
               x: Math.cos(angle) * dist,
               y: Math.sin(angle) * dist,
               vx: (Math.random()-.5)*2,
@@ -84,6 +84,10 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
             src: e.source, tgt: e.target,
             color: e.style?.stroke ?? '#334155',
           }));
+
+          if (dragging) {
+            dragging = sNodes.find(n => n.id === dragging.id) || null;
+          }
         }
 
         /* ── setup ───────────────────────────────── */
