@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { PlusCircle, Folder, Sparkles, Trash2, Pencil, MoreVertical, Check, X } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
@@ -15,7 +17,7 @@ export default function Dashboard() {
   const menuRef = useRef(null);
 
   useEffect(() => {
-    fetch(`http://localhost:5000/api/users/${user.id}/projects`)
+    fetch(`${API_URL}/api/users/${user.id}/projects`)
       .then(res => res.json())
       .then(data => { setProjects(data); setLoading(false); });
   }, [user]);
@@ -32,7 +34,7 @@ export default function Dashboard() {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const res = await fetch('http://localhost:5000/api/projects', {
+    const res = await fetch(`${API_URL}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: newTitle, ownerId: user.id })
@@ -44,7 +46,7 @@ export default function Dashboard() {
   const handleDelete = async (projectId, e) => {
     e.stopPropagation();
     if (!confirm('¿Eliminar este proyecto? Esta acción no se puede deshacer.')) return;
-    await fetch(`http://localhost:5000/api/projects/${projectId}`, { method: 'DELETE' });
+    await fetch(`${API_URL}/api/projects/${projectId}`, { method: 'DELETE' });
     setProjects(prev => prev.filter(p => p.id !== projectId));
     setMenuOpen(null);
   };
@@ -59,7 +61,7 @@ export default function Dashboard() {
   const handleRename = async (projectId, e) => {
     e?.stopPropagation();
     if (!renameValue.trim()) { setRenamingId(null); return; }
-    const res = await fetch(`http://localhost:5000/api/projects/${projectId}`, {
+    const res = await fetch(`${API_URL}/api/projects/${projectId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: renameValue })

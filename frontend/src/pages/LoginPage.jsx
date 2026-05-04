@@ -2,6 +2,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
 export default function LoginPage() {
   const { setUser } = useAuth();
   const [error,    setError]    = useState('');
@@ -19,7 +20,7 @@ export default function LoginPage() {
         const userInfo = await userInfoRes.json();
 
         // Send to our backend with the access token (backend verifies domain)
-        const res = await fetch('http://localhost:5000/api/auth/google', {
+        const res = await fetch(`${API_URL}/api/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: tokenResponse.access_token, userInfo }),

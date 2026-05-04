@@ -8,6 +8,8 @@ import UserColorPicker from '../components/UserColorPicker';
 
 const EDGE_STYLE = { stroke: '#475569' };
 
+const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
+
 function edgeStyled(color) { return { stroke: color }; }
 
 function mergeDegrees(nodes, edges) {
@@ -39,7 +41,7 @@ export default function ProjectWorkspace() {
 
   /* ── load ── */
   useEffect(() => {
-    fetch(`http://localhost:5000/api/projects/${id}`)
+    fetch(`${API_URL}/api/projects/${id}`)
       .then(r => r.json())
       .then(data => {
         setProject(data);
@@ -89,7 +91,7 @@ export default function ProjectWorkspace() {
   const handleExpand = async (nodeId, nodeLabel, relationType) => {
     setMenu(null); setIsTyping(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/projects/${id}/expand-node`, {
+      const res = await fetch(`${API_URL}/api/projects/${id}/expand-node`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nodeId, nodeLabel, relationType }),
       });
@@ -106,14 +108,14 @@ export default function ProjectWorkspace() {
     setMessages(p => [...p, userMsg]);
     setInput(''); setIsTyping(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/projects/${id}/chat`, {
+      const res = await fetch(`${API_URL}/api/projects/${id}/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: userMsg.content, userId: user?.id }),
       });
       const data = await res.json();
       setMessages(p => [...p, data.message]);
       setIsTyping(false);
-      fetch(`http://localhost:5000/api/projects/${id}/extract-graph`, {
+      fetch(`${API_URL}/api/projects/${id}/extract-graph`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: user?.id }),
       }).then(r => r.json()).then(g => mergeGraph(g)).catch(console.error);
