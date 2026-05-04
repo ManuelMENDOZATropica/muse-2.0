@@ -98,7 +98,23 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
           const h = containerRef.current.offsetHeight;
           const cv = p.createCanvas(w, h);
           cv.elt.style.display = 'block';
-          cv.elt.addEventListener('contextmenu', e => e.preventDefault());
+          cv.elt.addEventListener('contextmenu', e => {
+            e.preventDefault();
+            const rect = cv.elt.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            const worldX = (mouseX - cam.x) / cam.z;
+            const worldY = (mouseY - cam.y) / cam.z;
+            
+            const n = sNodes.find(node => {
+              const r = Math.max(node.radius, 14);
+              return (node.x - worldX)**2 + (node.y - worldY)**2 < r*r;
+            });
+            
+            if (n && cbRightRef.current) {
+              cbRightRef.current(n, e.clientX, e.clientY);
+            }
+          });
           p.textFont('Inter, system-ui, sans-serif');
           syncGraph();
           cam = { x: w/2, y: h/2, z: 1 };
@@ -280,11 +296,9 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
         let dragDist = 0;
 
         /* ── mouse ───────────────────────────────── */
-        p.mousePressed = () => {
+        p.mousePressed = (e) => {
           dragDist = 0;
-          if (p.mouseButton === p.RIGHT) {
-            const n = nodeAt();
-            if (n && cbRightRef.current) cbRightRef.current(n, p.mouseX, p.mouseY);
+          if (p.mouseButton !== p.LEFT || e.ctrlKey || e.button === 2) {
             return false;
           }
           // Reset view button
