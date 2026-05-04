@@ -8,13 +8,15 @@ function hexRgb(hex) {
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
 }
 
-export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove, currentUserId, colorVersion }) {
+export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick, onNodeMove, currentUserId, colorVersion }) {
   const containerRef = useRef(null);
   const graphRef     = useRef({ nodes: [], edges: [], dirty: false });
-  const cbRef        = useRef(onNodeRightClick);
+  const cbRightRef   = useRef(onNodeRightClick);
+  const cbClickRef   = useRef(onNodeClick);
   const cbMoveRef    = useRef(onNodeMove);
 
-  useEffect(() => { cbRef.current = onNodeRightClick; }, [onNodeRightClick]);
+  useEffect(() => { cbRightRef.current = onNodeRightClick; }, [onNodeRightClick]);
+  useEffect(() => { cbClickRef.current = onNodeClick; }, [onNodeClick]);
   useEffect(() => { cbMoveRef.current = onNodeMove; }, [onNodeMove]);
   useEffect(() => {
     graphRef.current = { nodes, edges, dirty: true };
@@ -275,11 +277,14 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
                  p.mouseY > p.height-34 && p.mouseY < p.height-10;
         }
 
+        let dragDist = 0;
+
         /* ── mouse ───────────────────────────────── */
         p.mousePressed = () => {
+          dragDist = 0;
           if (p.mouseButton === p.RIGHT) {
             const n = nodeAt();
-            if (n && cbRef.current) cbRef.current(n, p.mouseX, p.mouseY);
+            if (n && cbRightRef.current) cbRightRef.current(n, p.mouseX, p.mouseY);
             return false;
           }
           // Reset view button
@@ -297,6 +302,7 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
 
         let lastEmit = 0;
         p.mouseDragged = () => {
+          dragDist += Math.abs(p.mouseX - p.pmouseX) + Math.abs(p.mouseY - p.pmouseY);
           if (dragging) {
             const w = worldPos();
             dragging.x = w.x; dragging.y = w.y;
@@ -312,8 +318,16 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
         };
 
         p.mouseReleased = () => { 
-          if (dragging && cbMoveRef.current) {
-            cbMoveRef.current(dragging.id, dragging.x, dragging.y);
+          if (dragging) {
+            if (dragDist < 5) {
+              // Click
+              if (cbClickRef.current) cbClickRef.current(dragging);
+            } else {
+              // Drag
+              dragging.data = dragging.data || {};
+              dragging.data.isPinned = true;
+              if (cbMoveRef.current) cbMoveRef.current(dragging.id, dragging.x, dragging.y);
+            }
           }
           dragging = null; 
           panning = false; 

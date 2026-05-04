@@ -35,6 +35,7 @@ export default function ProjectWorkspace() {
   const [edges,    setEdges]    = useState([]);
   const [colorVersion, setColorVersion] = useState(0);
   const [chatWidth, setChatWidth] = useState(400); // For resizable sidebar
+  const [connectingNode, setConnectingNode] = useState(null);
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
 
@@ -196,6 +197,28 @@ export default function ProjectWorkspace() {
     }
   }, [id]);
 
+  /* ── Handle Node Click ── */
+  const handleNodeClick = useCallback(async (node) => {
+    if (connectingNode) {
+      if (connectingNode.id !== node.id) {
+        setIsTyping(true);
+        const nodeA = connectingNode;
+        const nodeB = { id: node.id, label: node.label };
+        setConnectingNode(null);
+        try {
+          const res = await fetch(`${API_URL}/api/projects/${id}/connect-nodes`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nodeA, nodeB }),
+          });
+          mergeGraph(await res.json(), '#10b981');
+        } catch(e) { console.error(e); }
+        finally { setIsTyping(false); }
+      } else {
+        setConnectingNode(null);
+      }
+    }
+  }, [connectingNode, id, mergeGraph]);
+
   if (!project) return (
     <div className="h-screen flex items-center justify-center text-gray-500">Loading Workspace...</div>
   );
@@ -277,9 +300,18 @@ export default function ProjectWorkspace() {
 
         {/* p5 Map */}
         <div className="flex-1 relative overflow-hidden">
+          {/* Connection Banner */}
+          {connectingNode && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-6 py-2 rounded-full shadow-2xl z-20 text-sm font-medium animate-pulse flex items-center gap-3">
+              <span>Selecciona otro nodo para conectar con "{connectingNode.label}"...</span>
+              <button onClick={() => setConnectingNode(null)} className="underline opacity-80 hover:opacity-100 text-xs">Cancelar</button>
+            </div>
+          )}
+
           <NetworkMap
             nodes={nodes}
             edges={edges}
+            onNodeClick={handleNodeClick}
             onNodeRightClick={(node, x, y) => setMenu({ id: node.id, label: node.label, x, y })}
             onNodeMove={handleNodeMove}
             currentUserId={user?.id}
@@ -300,13 +332,13 @@ export default function ProjectWorkspace() {
                 className="px-4 py-3 text-sm text-left text-gray-300 hover:bg-purple-500/20 hover:text-purple-300 transition-colors flex items-center gap-2"
                 onClick={() => handleExpand(menu.id, menu.label, 'related')}
               >
-                <div className="w-2 h-2 rounded-full bg-purple-500" /> Conceptos Relacionados
+                <div className="w-2 h-2 rounded-full bg-purple-500" /> Ver conceptos semejantes
               </button>
               <button
-                className="px-4 py-3 text-sm text-left text-gray-300 hover:bg-orange-500/20 hover:text-orange-300 transition-colors flex items-center gap-2"
-                onClick={() => handleExpand(menu.id, menu.label, 'dissimilar')}
+                className="px-4 py-3 text-sm text-left text-gray-300 hover:bg-blue-500/20 hover:text-blue-300 transition-colors flex items-center gap-2"
+                onClick={() => { setConnectingNode({ id: menu.id, label: menu.label }); setMenu(null); }}
               >
-                <div className="w-2 h-2 rounded-full bg-orange-500" /> Conceptos Disímiles
+                <div className="w-2 h-2 rounded-full bg-blue-500" /> Conectar con otro nodo
               </button>
             </div>
           )}

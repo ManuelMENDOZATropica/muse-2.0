@@ -356,6 +356,101 @@ Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
   }
 });
 
+// Connect Nodes (Context Menu Action)
+app.post('/api/projects/:id/connect-nodes', async (req, res) => {
+  const projectId = req.params.id;
+  const { nodeA, nodeB } = req.body; // { id, label }
+  
+  try {
+    const existingNodes = await prisma.node.findMany({ where: { projectId } });
+    const existingLabels = existingNodes.map(n => n.label.toLowerCase()).join(', ');
+
+    const prompt = `Actúa como Muse. El usuario quiere conectar los conceptos "${nodeA.label}" y "${nodeB.label}".
+Conceptos YA en el mapa: ${existingLabels}
+
+Genera EXACTAMENTE 1 concepto nuevo que funcione como puente intermedio, conexión lógica o punto de encuentro entre ambos.
+Usa un nombre corto (1-3 palabras). ID único tipo "c1".
+Debe tener un edge hacia "${nodeA.id}" y un edge hacia "${nodeB.id}".
+
+JSON válido:
+{
+  "nodes": [{"id":"c1","label":"Concepto Puente"}],
+  "edges": [
+    {"source":"${nodeA.id}","target":"c1"},
+    {"source":"c1","target":"${nodeB.id}"}
+  ]
+}`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+    
+    const rawAiResponse = response.text;
+    let extractedNodes = [];
+    let extractedEdges = [];
+    
+    const jsonMatch = rawAiResponse.match(/```json([\s\S]*?)```/);
+    const parseTarget = jsonMatch ? jsonMatch[1] : rawAiResponse;
+    try {
+      const parsed = JSON.parse(parseTarget.replace(/```/g, ''));
+      if (parsed && Array.isArray(parsed.nodes)) extractedNodes = parsed.nodes;
+      if (parsed && Array.isArray(parsed.edges)) extractedEdges = parsed.edges;
+    } catch (e) { console.error('JSON parse error (Connect Nodes)', e); }
+
+    const createdNodes = [];
+    const createdEdges = [];
+    const idMapping = {};
+
+    for (let i = 0; i < extractedNodes.length; i++) {
+      const n = extractedNodes[i];
+      // Generate somewhere in between
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 100 + Math.random() * 100;
+      const newNode = await prisma.node.create({
+        data: {
+          projectId,
+          label: n.label,
+          data: {},
+          positionX: Math.cos(angle) * radius,
+          positionY: Math.sin(angle) * radius,
+          type: 'topic'
+        }
+      });
+      idMapping[n.id] = newNode.id;
+      createdNodes.push(newNode);
+    }
+
+    const existingLabelToId = Object.fromEntries(
+      existingNodes.map(n => [n.label.toLowerCase(), n.id])
+    );
+
+    for (const e of extractedEdges) {
+      const srcId = idMapping[e.source] || existingLabelToId[e.source?.toLowerCase()] || e.source;
+      const tgtId = idMapping[e.target] || existingLabelToId[e.target?.toLowerCase()] || e.target;
+      if (srcId && tgtId && srcId !== tgtId) {
+        try {
+          const newEdge = await prisma.edge.create({
+            data: { projectId, sourceId: srcId, targetId: tgtId }
+          });
+          createdEdges.push(newEdge);
+        } catch (_) { }
+      }
+    }
+
+    io.to(projectId).emit('project_updated', {
+      newMessages: [],
+      newNodes: createdNodes,
+      newEdges: createdEdges
+    });
+
+    res.json({ newNodes: createdNodes, newEdges: createdEdges });
+  } catch (error) {
+    console.error('Connect Nodes Error:', error);
+    res.status(500).json({ error: 'Connection failed' });
+  }
+});
+
 // Expand Node (Context Menu Actions)
 app.post('/api/projects/:id/expand-node', async (req, res) => {
   const projectId = req.params.id;
@@ -365,15 +460,21 @@ app.post('/api/projects/:id/expand-node', async (req, res) => {
     const existingNodes = await prisma.node.findMany({ where: { projectId } });
     const existingLabels = existingNodes.map(n => n.label.toLowerCase()).join(', ');
 
-    const promptType = relationType === 'related'
-      ? 'conceptos relacionados o subcategorías clave'
-      : 'conceptos opuestos o disruptivos';
+    let promptType = '';
+    let count = 3;
+    if (relationType === 'related') {
+      promptType = 'conceptos semejantes que funcionen como caminos similares';
+      count = 3;
+    } else {
+      promptType = 'conceptos opuestos o disruptivos';
+      count = 5;
+    }
 
     const prompt = `Eres un arquitecto de información expandiendo el nodo "${nodeLabel}" en un mapa conceptual colaborativo.
 
 Conceptos YA en el mapa (NO repetir): ${existingLabels}
 
-Genera EXACTAMENTE 5 ${promptType} de "${nodeLabel}" que no estén en el mapa.
+Genera EXACTAMENTE ${count} ${promptType} de "${nodeLabel}" que no estén en el mapa.
 Nombres muy cortos (1-3 palabras). IDs únicos tipo "e1"…"e5".
 Todas las edges parten del nodo "${nodeId}".
 
