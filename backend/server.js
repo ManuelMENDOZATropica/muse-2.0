@@ -102,7 +102,7 @@ app.get('/api/users/:userId/projects', async (req, res) => {
       include: {
         owner: { select: { id: true, name: true, avatar: true } },
         nodes: {
-          select: { createdBy: { select: { id: true, name: true, avatar: true } } }
+          include: { createdBy: { select: { id: true, name: true, avatar: true } } }
         }
       },
       orderBy: { updatedAt: 'desc' }
