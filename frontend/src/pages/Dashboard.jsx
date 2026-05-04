@@ -136,7 +136,7 @@ export default function Dashboard() {
         {loading ? (
           <div className="col-span-2 flex items-center justify-center text-gray-500">Loading projects...</div>
         ) : (
-          projects.map(p => (
+          Array.isArray(projects) ? projects.map(p => (
             <div
               key={p.id}
               onClick={() => renamingId !== p.id && navigate(`/project/${p.id}`)}
@@ -198,7 +198,9 @@ export default function Dashboard() {
               {/* Render contributors avatars at bottom right */}
               {renderAvatars(p)}
             </div>
-          ))
+          )) : (
+            <div className="col-span-2 flex items-center justify-center text-red-500">Error loading projects.</div>
+          )
         )}
       </div>
     </div>
