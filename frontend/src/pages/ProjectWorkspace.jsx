@@ -33,7 +33,9 @@ export default function ProjectWorkspace() {
   const [menu,     setMenu]     = useState(null);
   const [nodes,    setNodes]    = useState([]);
   const [edges,    setEdges]    = useState([]);
-  const [colorVersion, setColorVersion] = useState(0); // bumps when user changes color
+  const [colorVersion, setColorVersion] = useState(0);
+  const [chatWidth, setChatWidth] = useState(400); // For resizable sidebar
+  const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
 
   // live refs for callbacks
@@ -105,10 +107,35 @@ export default function ProjectWorkspace() {
       }
     });
 
+    socket.on('chat_chunk', (data) => {
+      setMessages(prev => {
+        let existingIndex = prev.findIndex(m => m.id === data.messageId || m.id === data.tempId);
+        if (existingIndex !== -1) {
+          const next = [...prev];
+          next[existingIndex] = { ...next[existingIndex], id: data.messageId, content: data.content };
+          return next;
+        } else {
+          return [...prev, { id: data.messageId, role: data.role, content: data.content }];
+        }
+      });
+      if (data.isDone && data.role === 'assistant') {
+        setIsTyping(false);
+      }
+    });
+
+    socket.on('trigger_extraction', (data) => {
+      if (data?.userId === user?.id) {
+        fetch(`${API_URL}/api/projects/${id}/extract-graph`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.id }),
+        }).then(r => r.json()).then(g => mergeGraph(g)).catch(console.error);
+      }
+    });
+
     socket.on('node_moved', (data) => {
       setNodes(prev => prev.map(n => 
         n.id === data.nodeId 
-          ? { ...n, position: { x: data.positionX, y: data.positionY } } 
+          ? { ...n, position: { x: data.positionX, y: data.positionY }, data: { ...n.data, isPinned: data.isPinned } } 
           : n
       ));
     });
@@ -135,31 +162,37 @@ export default function ProjectWorkspace() {
   const handleSend = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
-    const userMsg = { role: 'user', content: input, id: Date.now() };
-    setMessages(p => [...p, userMsg]);
-    setInput(''); setIsTyping(true);
-    try {
-      const res = await fetch(`${API_URL}/api/projects/${id}/chat`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: userMsg.content, userId: user?.id }),
-      });
-      const data = await res.json();
-      setMessages(p => [...p, data.message]);
-      setIsTyping(false);
-      fetch(`${API_URL}/api/projects/${id}/extract-graph`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user?.id }),
-      }).then(r => r.json()).then(g => mergeGraph(g)).catch(console.error);
-    } catch(e) { console.error(e); setIsTyping(false); }
+    setIsTyping(true);
+    socketRef.current.emit('send_chat', { projectId: id, content: input, userId: user?.id });
+    setInput('');
   };
+
+  /* ── Resize Sidebar ── */
+  const startDrag = () => { isDraggingSidebar.current = true; };
+  const stopDrag = () => { isDraggingSidebar.current = false; };
+  const onDrag = (e) => {
+    if (isDraggingSidebar.current) {
+      if (e.clientX > 300 && e.clientX < window.innerWidth - 300) {
+        setChatWidth(e.clientX);
+      }
+    }
+  };
+  useEffect(() => {
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', stopDrag);
+    return () => {
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', stopDrag);
+    };
+  }, []);
 
   /* ── Handle Node Movement Emit ── */
   const handleNodeMove = useCallback((nodeId, x, y) => {
     // update local state
-    setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, position: { x, y } } : n));
+    setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, position: { x, y }, data: { ...n.data, isPinned: true } } : n));
     // emit to server
     if (socketRef.current) {
-      socketRef.current.emit('node_moved', { projectId: id, nodeId, positionX: x, positionY: y });
+      socketRef.current.emit('node_moved', { projectId: id, nodeId, positionX: x, positionY: y, isPinned: true });
     }
   }, [id]);
 
@@ -187,7 +220,12 @@ export default function ProjectWorkspace() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Chat */}
-        <div className="w-1/2 shrink-0 border-r border-white/5 flex flex-col bg-[#0a0a0a]">
+        <div style={{ width: chatWidth }} className="shrink-0 border-r border-white/5 flex flex-col bg-[#0a0a0a] relative">
+          {/* Drag Handle */}
+          <div 
+            onMouseDown={startDrag} 
+            className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-purple-500/50 z-50 transition-colors"
+          ></div>
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {messages.length === 0 && (
               <div className="text-center text-gray-500 mt-10 text-sm">

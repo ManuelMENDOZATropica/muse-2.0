@@ -22,15 +22,52 @@ io.on('connection', (socket) => {
   });
   
   socket.on('node_moved', async (data) => {
-    // data: { projectId, nodeId, positionX, positionY }
+    // data: { projectId, nodeId, positionX, positionY, isPinned }
     socket.to(data.projectId).emit('node_moved', data);
     
-    // Optimistically update DB (no await so it doesn't block)
     if (data.nodeId && data.positionX !== undefined) {
       prisma.node.update({
         where: { id: data.nodeId },
         data: { positionX: data.positionX, positionY: data.positionY }
       }).catch(err => console.error('Error updating node pos:', err));
+    }
+  });
+
+  socket.on('send_chat', async (data) => {
+    const { projectId, content, userId } = data;
+    try {
+      const userMsg = await prisma.message.create({
+        data: { projectId, role: 'user', content, createdById: userId || null }
+      });
+      io.to(projectId).emit('chat_chunk', { messageId: userMsg.id, role: 'user', content, isDone: true });
+
+      const history = await prisma.message.findMany({
+        where: { projectId }, orderBy: { createdAt: 'asc' }, take: 10
+      });
+      const formattedHistory = history.map(m => `${m.role === 'user' ? 'User' : 'Muse'}: ${m.content}`).join('\n');
+      const prompt = `Actúa como Muse, un colaborador creativo experto. Estamos conversando sobre un proyecto.\nHistorial de conversación:\n${formattedHistory}\n\nEl usuario acaba de decir: "${content}"\n\nTu tarea es responder al usuario de forma conversacional, amigable, concisa y usando Markdown (listas, negritas, etc) para organizar tus ideas.`;
+
+      const responseStream = await ai.models.generateContentStream({
+        model: 'gemini-2.5-flash', contents: prompt,
+      });
+
+      const tempId = `temp_${Date.now()}`;
+      let fullText = '';
+      for await (const chunk of responseStream) {
+        fullText += chunk.text;
+        io.to(projectId).emit('chat_chunk', { messageId: tempId, role: 'assistant', content: fullText, isDone: false });
+      }
+
+      const aiMsg = await prisma.message.create({
+        data: { projectId, role: 'assistant', content: fullText }
+      });
+      io.to(projectId).emit('chat_chunk', { messageId: aiMsg.id, tempId, role: 'assistant', content: fullText, isDone: true });
+      
+      // Trigger graph extraction
+      socket.emit('trigger_extraction', { userId });
+    } catch (e) {
+      console.error(e);
+      io.to(projectId).emit('chat_chunk', { messageId: `err_${Date.now()}`, role: 'assistant', content: 'Lo siento, hubo un error.', isDone: true });
     }
   });
 });
@@ -170,47 +207,7 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
-// Chat & Map Topic Extraction
-app.post('/api/projects/:id/chat', async (req, res) => {
-  const projectId = req.params.id;
-  const { content, userId } = req.body;
-
-  try {
-    // 1. Save User Message
-    const userMsg = await prisma.message.create({
-      data: { projectId, role: 'user', content, createdById: userId || null }
-    });
-
-    // 2. Build context
-    const history = await prisma.message.findMany({
-      where: { projectId }, orderBy: { createdAt: 'asc' }, take: 10
-    });
-    const formattedHistory = history
-      .map(m => `${m.role === 'user' ? 'User' : 'Muse'}: ${m.content}`).join('\n');
-
-    const prompt = `Actúa como Muse, un colaborador creativo experto. Estamos conversando sobre un proyecto.
-Historial de conversación:
-${formattedHistory}
-
-El usuario acaba de decir: "${content}"
-
-Tu tarea es responder al usuario de forma conversacional, amigable, concisa y usando Markdown (listas, negritas, etc) para organizar tus ideas.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash', contents: prompt,
-    });
-
-    // 3. Save AI Message
-    const aiMsg = await prisma.message.create({
-      data: { projectId, role: 'assistant', content: response.text }
-    });
-
-    res.json({ message: aiMsg });
-  } catch (error) {
-    console.error('Chat Error:', error);
-    res.status(500).json({ error: 'Chat processing failed' });
-  }
-});
+// (Chat is now handled via Socket.IO above)
 
 
 // Extract Graph in Background
@@ -256,7 +253,7 @@ Todos sus edges van DESDE "main" HACIA los derivados.
 
 PASO 3 — CONEXIONES SEMÁNTICAS CON NODOS EXISTENTES:
 Revisa los conceptos ya en el mapa: ${existingLabelsFormatted}
-Si el concepto principal (main) es semánticamente cercano a alguno de ellos, agrega un edge entre ellos.
+Si el concepto principal (main) es semánticamente cercano a alguno de ellos, agrega un edge entre ellos. ESPECIALMENTE trata de conectar conceptos creados por diferentes usuarios si tienen sinergia.
 Usa el label EXACTO del nodo existente como valor de "source" o "target" en el edge.
 Puedes crear hasta 3 de estas conexiones cruzadas. No son obligatorias — solo si hay cercanía real.
 

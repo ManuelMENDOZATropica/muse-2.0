@@ -99,6 +99,11 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
           targetCam = { ...cam };
         };
 
+        p.windowResized = () => {
+          if (!containerRef.current) return;
+          p.resizeCanvas(containerRef.current.offsetWidth, containerRef.current.offsetHeight);
+        };
+
         /* ── main loop ───────────────────────────── */
         p.draw = () => {
           if (graphRef.current.dirty) {
@@ -166,8 +171,8 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
               const d = Math.sqrt(dSq);
               const f = 1400 / dSq;
               const fx = (dx/d)*f, fy = (dy/d)*f;
-              if (a.id !== dragging?.id) { a.vx -= fx; a.vy -= fy; }
-              if (b.id !== dragging?.id) { b.vx += fx; b.vy += fy; }
+              if (a.id !== dragging?.id && !a.data?.isPinned) { a.vx -= fx; a.vy -= fy; }
+              if (b.id !== dragging?.id && !b.data?.isPinned) { b.vx += fx; b.vy += fy; }
             }
           }
 
@@ -178,21 +183,22 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove,
             const dx = b.x-a.x, dy = b.y-a.y;
             const d = Math.max(Math.sqrt(dx*dx+dy*dy), 1);
             const rest = (a.radius+b.radius)*2.6+50;
-            const k = 0.003;
+            const isDiffUser = a.createdById && b.createdById && a.createdById !== b.createdById;
+            const k = isDiffUser ? 0.008 : 0.003; // stronger pull between different users
             const fx = (dx/d)*(d-rest)*k, fy = (dy/d)*(d-rest)*k;
-            if (a.id !== dragging?.id) { a.vx += fx; a.vy += fy; }
-            if (b.id !== dragging?.id) { b.vx -= fx; b.vy -= fy; }
+            if (a.id !== dragging?.id && !a.data?.isPinned) { a.vx += fx; a.vy += fy; }
+            if (b.id !== dragging?.id && !b.data?.isPinned) { b.vx -= fx; b.vy -= fy; }
           });
 
           // center gravity
           sNodes.forEach(n => {
-            if (n.id === dragging?.id) return;
+            if (n.id === dragging?.id || n.data?.isPinned) return;
             n.vx += -n.x * 0.0003; n.vy += -n.y * 0.0003;
           });
 
           // integrate
           sNodes.forEach(n => {
-            if (n.id === dragging?.id) return;
+            if (n.id === dragging?.id || n.data?.isPinned) return;
             n.vx *= 0.84; n.vy *= 0.84;
             n.x += n.vx; n.y += n.vy;
           });
