@@ -300,7 +300,7 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
         /* ── mouse ───────────────────────────────── */
         p.mousePressed = (e) => {
           dragDist = 0;
-          if (p.mouseButton !== p.LEFT || e.ctrlKey || e.button === 2) {
+          if (p.mouseButton !== p.LEFT || (e && e.ctrlKey) || (e && e.button === 2)) {
             return;
           }
           // Reset view button
