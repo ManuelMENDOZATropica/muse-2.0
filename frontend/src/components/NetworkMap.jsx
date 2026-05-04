@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react';
-import p5 from 'p5';
+import { useEffect, useRef, useState } from 'react';
 import { getUserPalette } from './UserColorPicker';
 
 function hexRgb(hex) {
@@ -23,6 +22,10 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, currentUser
 
   useEffect(() => {
     if (!containerRef.current) return;
+    let inst = null;
+
+    import('p5').then(mod => {
+    const p5 = mod.default;
 
     const sketch = (p) => {
       // Camera state
@@ -324,8 +327,9 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, currentUser
       };
     };
 
-    const inst = new p5(sketch, containerRef.current);
-    return () => inst.remove();
+    inst = new p5(sketch, containerRef.current);
+    }); // end import('p5').then
+    return () => { if (inst) inst.remove(); };
   }, []);
 
   return <div ref={containerRef} style={{ width:'100%', height:'100%' }} />;
