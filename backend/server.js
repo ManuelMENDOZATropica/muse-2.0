@@ -62,15 +62,28 @@ app.post('/api/auth/google', async (req, res) => {
 });
 
 
-// Get user's projects
+// Get user's projects (and all public projects)
 app.get('/api/users/:userId/projects', async (req, res) => {
   try {
     const projects = await prisma.project.findMany({
-      where: { ownerId: req.params.userId },
+      where: {
+        OR: [
+          { ownerId: req.params.userId },
+          { isPublic: true }
+        ]
+      },
+      include: {
+        owner: { select: { id: true, name: true, avatar: true } },
+        nodes: {
+          select: { createdBy: { select: { id: true, name: true, avatar: true } } },
+          distinct: ['createdById']
+        }
+      },
       orderBy: { updatedAt: 'desc' }
     });
     res.json(projects);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Error fetching projects' });
   }
 });

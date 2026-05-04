@@ -71,6 +71,38 @@ export default function Dashboard() {
     setRenamingId(null);
   };
 
+  const renderAvatars = (p) => {
+    const usersMap = new Map();
+    if (p.owner) usersMap.set(p.owner.id, p.owner);
+    if (p.nodes) {
+      p.nodes.forEach(n => {
+        if (n.createdBy) usersMap.set(n.createdBy.id, n.createdBy);
+      });
+    }
+    const contributors = Array.from(usersMap.values());
+    if (contributors.length === 0) return null;
+
+    return (
+      <div className="absolute bottom-4 right-4 flex -space-x-2" onClick={e => e.stopPropagation()}>
+        {contributors.slice(0, 3).map((u, i) => (
+          <img
+            key={u.id}
+            src={u.avatar || `https://ui-avatars.com/api/?name=${u.name}&background=random`}
+            alt={u.name || 'User'}
+            title={u.name || 'User'}
+            className="w-7 h-7 rounded-full border-2 border-[#1a1a1a] shadow-sm bg-gray-700"
+            style={{ zIndex: 10 - i }}
+          />
+        ))}
+        {contributors.length > 3 && (
+          <div className="w-7 h-7 rounded-full border-2 border-[#1a1a1a] bg-gray-800 text-[10px] font-medium text-white flex items-center justify-center" style={{ zIndex: 0 }}>
+            +{contributors.length - 3}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-8 pt-20">
       <div className="flex items-center gap-3 mb-12">
@@ -162,6 +194,9 @@ export default function Dashboard() {
                 )}
                 <p className="text-xs text-gray-500 mt-2">Updated {new Date(p.updatedAt).toLocaleDateString()}</p>
               </div>
+
+              {/* Render contributors avatars at bottom right */}
+              {renderAvatars(p)}
             </div>
           ))
         )}
