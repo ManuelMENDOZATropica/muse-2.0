@@ -6,8 +6,35 @@ const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { OAuth2Client } = require('google-auth-library');
 const { GoogleGenAI } = require('@google/genai');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: '*' }
+});
+
+// Real-time sockets
+io.on('connection', (socket) => {
+  socket.on('join_project', (projectId) => {
+    socket.join(projectId);
+  });
+  
+  socket.on('node_moved', async (data) => {
+    // data: { projectId, nodeId, positionX, positionY }
+    socket.to(data.projectId).emit('node_moved', data);
+    
+    // Optimistically update DB (no await so it doesn't block)
+    if (data.nodeId && data.positionX !== undefined) {
+      prisma.node.update({
+        where: { id: data.nodeId },
+        data: { positionX: data.positionX, positionY: data.positionY }
+      }).catch(err => console.error('Error updating node pos:', err));
+    }
+  });
+});
+
 const connectionString = `${process.env.DATABASE_URL}`;
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
@@ -318,6 +345,13 @@ Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
       }
     }
 
+    // Emit to room
+    io.to(projectId).emit('project_updated', {
+      newMessages: [],
+      newNodes: createdNodes,
+      newEdges: createdEdges
+    });
+
     res.json({ newNodes: createdNodes, newEdges: createdEdges });
 
   } catch (error) {
@@ -424,9 +458,27 @@ JSON válido:
       }
     }
 
+    // 3. Optional: Map Extraction
+    let newNodes = [];
+    let newEdges = [];
+    if (extractGraph) {
+      const g = await extractConceptsFromChat(projectId, userMsg, userId);
+      newNodes = g.nodes;
+      newEdges = g.edges;
+    }
+
+    // 4. Emit to all clients in the project room
+    io.to(projectId).emit('project_updated', {
+      newMessages: [userMsg, assistantMsg].filter(Boolean),
+      newNodes,
+      newEdges
+    });
+
     res.json({
-      newNodes: createdNodes,
-      newEdges: createdEdges
+      message: userMsg,
+      assistantMessage: assistantMsg,
+      newNodes,
+      newEdges
     });
     
   } catch (error) {
@@ -436,6 +488,6 @@ JSON válido:
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT} (with Socket.IO)`);
 });

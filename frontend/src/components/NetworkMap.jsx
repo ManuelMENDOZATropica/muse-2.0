@@ -8,12 +8,14 @@ function hexRgb(hex) {
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
 }
 
-export default function NetworkMap({ nodes, edges, onNodeRightClick, currentUserId, colorVersion }) {
+export default function NetworkMap({ nodes, edges, onNodeRightClick, onNodeMove, currentUserId, colorVersion }) {
   const containerRef = useRef(null);
   const graphRef     = useRef({ nodes: [], edges: [], dirty: false });
   const cbRef        = useRef(onNodeRightClick);
+  const cbMoveRef    = useRef(onNodeMove);
 
   useEffect(() => { cbRef.current = onNodeRightClick; }, [onNodeRightClick]);
+  useEffect(() => { cbMoveRef.current = onNodeMove; }, [onNodeMove]);
   useEffect(() => {
     graphRef.current = { nodes, edges, dirty: true };
   }, [nodes, edges]);
@@ -283,18 +285,29 @@ export default function NetworkMap({ nodes, edges, onNodeRightClick, currentUser
           }
         };
 
+        let lastEmit = 0;
         p.mouseDragged = () => {
           if (dragging) {
             const w = worldPos();
             dragging.x = w.x; dragging.y = w.y;
             dragging.vx = 0; dragging.vy = 0;
+            if (Date.now() - lastEmit > 50) {
+              if (cbMoveRef.current) cbMoveRef.current(dragging.id, dragging.x, dragging.y);
+              lastEmit = Date.now();
+            }
           } else if (panning) {
             targetCam.x = panStart.cx + (p.mouseX - panStart.x);
             targetCam.y = panStart.cy + (p.mouseY - panStart.y);
           }
         };
 
-        p.mouseReleased = () => { dragging = null; panning = false; };
+        p.mouseReleased = () => { 
+          if (dragging && cbMoveRef.current) {
+            cbMoveRef.current(dragging.id, dragging.x, dragging.y);
+          }
+          dragging = null; 
+          panning = false; 
+        };
 
         // Smooth, gentler zoom (factor 0.97/1.03 per tick)
         p.mouseWheel = (e) => {

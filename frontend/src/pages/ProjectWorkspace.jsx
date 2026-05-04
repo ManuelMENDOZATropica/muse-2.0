@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import NetworkMap from '../components/NetworkMap';
 import { useAuth } from '../context/AuthContext';
 import UserColorPicker from '../components/UserColorPicker';
+import { io } from 'socket.io-client';
 
 const EDGE_STYLE = { stroke: '#475569' };
 
@@ -38,29 +39,7 @@ export default function ProjectWorkspace() {
   // live refs for callbacks
   const nodesRef = useRef([]); useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   const edgesRef = useRef([]); useEffect(() => { edgesRef.current = edges; }, [edges]);
-
-  /* ── load ── */
-  useEffect(() => {
-    fetch(`${API_URL}/api/projects/${id}`)
-      .then(r => r.json())
-      .then(data => {
-        setProject(data);
-        setMessages(data.messages || []);
-        const n = data.nodes.map(n => ({
-          id: n.id, type: n.type || 'topic',
-          position: { x: n.positionX, y: n.positionY },
-          createdById: n.createdById || null,
-          data: { label: n.label },
-        }));
-        const e = (data.edges || []).map(e => ({
-          id: e.id, source: e.sourceId, target: e.targetId, style: EDGE_STYLE,
-        }));
-        setNodes(mergeDegrees(n, e));
-        setEdges(e);
-      });
-  }, [id]);
-
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  const socketRef = useRef(null);
 
   /* ── merge graph data helper ── */
   const mergeGraph = useCallback((graphData, edgeColor = '#475569') => {
@@ -86,6 +65,58 @@ export default function ProjectWorkspace() {
     setNodes(mergeDegrees(allN, allE));
     setEdges(allE);
   }, []);
+
+  /* ── load and setup socket ── */
+  useEffect(() => {
+    fetch(`${API_URL}/api/projects/${id}`)
+      .then(r => r.json())
+      .then(data => {
+        setProject(data);
+        setMessages(data.messages || []);
+        const n = data.nodes.map(n => ({
+          id: n.id, type: n.type || 'topic',
+          position: { x: n.positionX, y: n.positionY },
+          createdById: n.createdById || null,
+          data: { label: n.label },
+        }));
+        const e = (data.edges || []).map(e => ({
+          id: e.id, source: e.sourceId, target: e.targetId, style: EDGE_STYLE,
+        }));
+        setNodes(mergeDegrees(n, e));
+        setEdges(e);
+      });
+
+    // Setup Socket
+    const socket = io(API_URL);
+    socketRef.current = socket;
+    socket.emit('join_project', id);
+
+    socket.on('project_updated', (data) => {
+      if (data.newMessages && data.newMessages.length) {
+        setMessages(prev => {
+          const existIds = new Set(prev.map(m => m.id));
+          const toAdd = data.newMessages.filter(m => !existIds.has(m.id));
+          return [...prev, ...toAdd];
+        });
+        setIsTyping(false);
+      }
+      if ((data.newNodes && data.newNodes.length) || (data.newEdges && data.newEdges.length)) {
+        mergeGraph(data);
+      }
+    });
+
+    socket.on('node_moved', (data) => {
+      setNodes(prev => prev.map(n => 
+        n.id === data.nodeId 
+          ? { ...n, position: { x: data.positionX, y: data.positionY } } 
+          : n
+      ));
+    });
+
+    return () => socket.disconnect();
+  }, [id, mergeGraph]);
+
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   /* ── expand node ── */
   const handleExpand = async (nodeId, nodeLabel, relationType) => {
@@ -122,10 +153,15 @@ export default function ProjectWorkspace() {
     } catch(e) { console.error(e); setIsTyping(false); }
   };
 
-  /* ── right-click on node ── */
-  const onNodeRightClick = useCallback((node, mx, my) => {
-    setMenu({ id: node.id, label: node.label, x: mx, y: my });
-  }, []);
+  /* ── Handle Node Movement Emit ── */
+  const handleNodeMove = useCallback((nodeId, x, y) => {
+    // update local state
+    setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, position: { x, y } } : n));
+    // emit to server
+    if (socketRef.current) {
+      socketRef.current.emit('node_moved', { projectId: id, nodeId, positionX: x, positionY: y });
+    }
+  }, [id]);
 
   if (!project) return (
     <div className="h-screen flex items-center justify-center text-gray-500">Loading Workspace...</div>
@@ -206,7 +242,8 @@ export default function ProjectWorkspace() {
           <NetworkMap
             nodes={nodes}
             edges={edges}
-            onNodeRightClick={onNodeRightClick}
+            onNodeRightClick={(node, x, y) => setMenu({ id: node.id, label: node.label, x, y })}
+            onNodeMove={handleNodeMove}
             currentUserId={user?.id}
             colorVersion={colorVersion}
           />
