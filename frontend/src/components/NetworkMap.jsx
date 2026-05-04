@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import p5 from 'p5';
+p5.disableFriendlyErrors = true;
 import { getUserPalette } from './UserColorPicker';
 
 function hexRgb(hex) {
