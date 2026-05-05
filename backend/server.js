@@ -404,38 +404,30 @@ JSON válido:
 
     for (let i = 0; i < extractedNodes.length; i++) {
       const n = extractedNodes[i];
-      // Generate somewhere in between
-      const angle = Math.random() * Math.PI * 2;
-      const radius = 100 + Math.random() * 100;
+      const midX = ((nodeA.x || 0) + (nodeB.x || 0)) / 2;
+      const midY = ((nodeA.y || 0) + (nodeB.y || 0)) / 2;
       const newNode = await prisma.node.create({
         data: {
           projectId,
           label: n.label,
           data: {},
-          positionX: Math.cos(angle) * radius,
-          positionY: Math.sin(angle) * radius,
+          positionX: midX,
+          positionY: midY,
           type: 'topic'
         }
       });
-      idMapping[n.id] = newNode.id;
       createdNodes.push(newNode);
-    }
 
-    const existingLabelToId = Object.fromEntries(
-      existingNodes.map(n => [n.label.toLowerCase(), n.id])
-    );
-
-    for (const e of extractedEdges) {
-      const srcId = idMapping[e.source] || existingLabelToId[e.source?.toLowerCase()] || e.source;
-      const tgtId = idMapping[e.target] || existingLabelToId[e.target?.toLowerCase()] || e.target;
-      if (srcId && tgtId && srcId !== tgtId) {
-        try {
-          const newEdge = await prisma.edge.create({
-            data: { projectId, sourceId: srcId, targetId: tgtId }
-          });
-          createdEdges.push(newEdge);
-        } catch (_) { }
-      }
+      // Force create the two edges connecting A -> New -> B
+      try {
+        const edge1 = await prisma.edge.create({ data: { projectId, sourceId: nodeA.id, targetId: newNode.id } });
+        createdEdges.push(edge1);
+        const edge2 = await prisma.edge.create({ data: { projectId, sourceId: newNode.id, targetId: nodeB.id } });
+        createdEdges.push(edge2);
+      } catch (e) { console.error('Error creating forced edges', e); }
+      
+      // We only strictly need 1 intermediate node, so break if it generated more
+      break;
     }
 
     io.to(projectId).emit('project_updated', {

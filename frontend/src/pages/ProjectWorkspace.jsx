@@ -203,7 +203,7 @@ export default function ProjectWorkspace() {
       if (connectingNode.id !== node.id) {
         setIsTyping(true);
         const nodeA = connectingNode;
-        const nodeB = { id: node.id, label: node.label };
+        const nodeB = { id: node.id, label: node.label, x: node.x, y: node.y };
         setConnectingNode(null);
         try {
           const res = await fetch(`${API_URL}/api/projects/${id}/connect-nodes`, {
@@ -336,7 +336,11 @@ export default function ProjectWorkspace() {
               </button>
               <button
                 className="px-4 py-3 text-sm text-left text-gray-300 hover:bg-blue-500/20 hover:text-blue-300 transition-colors flex items-center gap-2"
-                onClick={() => { setConnectingNode({ id: menu.id, label: menu.label }); setMenu(null); }}
+                onClick={() => { 
+                  const nObj = nodes.find(n => n.id === menu.id);
+                  setConnectingNode({ id: menu.id, label: menu.label, x: nObj?.position?.x || 0, y: nObj?.position?.y || 0 }); 
+                  setMenu(null); 
+                }}
               >
                 <div className="w-2 h-2 rounded-full bg-blue-500" /> Conectar con otro nodo
               </button>
