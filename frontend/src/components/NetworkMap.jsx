@@ -65,10 +65,13 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
           sNodes = ns.map(n => {
             const label   = n.data?.label ?? n.label ?? '';
             const d       = deg[n.id] ?? 0;
-            const radius  = d >= 2 ? Math.min(22 + d * 9, 72) : 5;
+            const radius  = d >= 2 ? Math.min(22 + d * 9, 72) : 12;
             const uid     = n.createdById ?? n.data?.createdById ?? null;
             // Use centralized palette (reads from localStorage if user changed color)
-            const palette = getUserPalette(uid);
+            let palette = getUserPalette(uid);
+            if (n.data?.isMagnum) {
+              palette = { name: 'MAGNUM', hub: '#4b5563', leaf: '#9ca3af' };
+            }
             const prev    = byId[n.id];
             if (prev) return { ...prev, label, degree: d, radius, palette, data: n.data };
             const angle = Math.random() * Math.PI * 2;
@@ -193,7 +196,7 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
               const dx = b.x-a.x, dy = b.y-a.y;
               const dSq = Math.max(dx*dx+dy*dy, 100);
               const d = Math.sqrt(dSq);
-              const f = 1400 / dSq;
+              const f = 4500 / dSq;
               const fx = (dx/d)*f, fy = (dy/d)*f;
               if (a.id !== dragging?.id && !a.data?.isPinned) { a.vx -= fx; a.vy -= fy; }
               if (b.id !== dragging?.id && !b.data?.isPinned) { b.vx += fx; b.vy += fy; }
@@ -206,7 +209,7 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
             if (!a || !b) return;
             const dx = b.x-a.x, dy = b.y-a.y;
             const d = Math.max(Math.sqrt(dx*dx+dy*dy), 1);
-            const rest = (a.radius+b.radius)*2.6+50;
+            const rest = (a.radius+b.radius)*3.2+110;
             const isDiffUser = a.createdById && b.createdById && a.createdById !== b.createdById;
             const k = isDiffUser ? 0.008 : 0.003; // stronger pull between different users
             const fx = (dx/d)*(d-rest)*k, fy = (dy/d)*(d-rest)*k;
@@ -217,7 +220,7 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
           // center gravity
           sNodes.forEach(n => {
             if (n.id === dragging?.id || n.data?.isPinned) return;
-            n.vx += -n.x * 0.0003; n.vy += -n.y * 0.0003;
+            n.vx += -n.x * 0.00015; n.vy += -n.y * 0.00015;
           });
 
           // integrate
@@ -269,12 +272,24 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
             } else {
               // leaf dot in leaf color
               p.noStroke(); p.fill(lr,lg,lb, hovered ? 230 : 150);
-              p.ellipse(n.x, n.y, hovered ? 8 : 5);
+              p.ellipse(n.x, n.y, n.radius * 2);
               // label
-              p.fill(lr,lg,lb, hovered ? 255 : 190);
+              p.fill(lr,lg,lb, hovered ? 255 : 210);
               p.textAlign(p.CENTER, p.TOP);
-              p.textSize(10); p.textStyle(p.NORMAL);
-              p.text(n.label, n.x, n.y+6);
+              p.textSize(12); p.textStyle(p.NORMAL);
+              p.text(n.label, n.x, n.y+n.radius+4);
+            }
+            if (n.data?.url) {
+              p.fill(255, 255, 255, 180);
+              p.textSize(10);
+              p.textAlign(p.CENTER, p.BOTTOM);
+              p.text("🔗", n.x, n.y - n.radius - 2);
+            }
+            if (hovered && n.data?.author) {
+              p.fill(200, 200, 200, 255);
+              p.textAlign(p.CENTER, p.BOTTOM);
+              p.textSize(10); p.textStyle(p.ITALIC);
+              p.text(`por ${n.data.author}`, n.x, n.y - (isHub ? n.radius + 24 : n.radius + 18));
             }
           });
         }

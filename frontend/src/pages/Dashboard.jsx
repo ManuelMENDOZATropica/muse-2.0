@@ -9,6 +9,9 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [projects, setProjects] = useState([]);
   const [newTitle, setNewTitle] = useState('');
+  const [briefFile, setBriefFile] = useState(null);
+  const [researchFile, setResearchFile] = useState(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null); // project id with open menu
   const [renamingId, setRenamingId] = useState(null);
@@ -34,13 +37,30 @@ export default function Dashboard() {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    const res = await fetch(`${API_URL}/api/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: newTitle, ownerId: user.id })
-    });
-    const newProject = await res.json();
-    navigate(`/project/${newProject.id}`);
+    setIsCreating(true);
+    
+    const formData = new FormData();
+    formData.append('title', newTitle);
+    formData.append('ownerId', user.id);
+    if (briefFile) formData.append('brief', briefFile);
+    if (researchFile) formData.append('research', researchFile);
+
+    try {
+      const res = await fetch(`${API_URL}/api/projects`, {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to create project');
+      }
+      const newProject = await res.json();
+      navigate(`/project/${newProject.id}`);
+    } catch(e) {
+      console.error('Create error:', e);
+      alert('Error creating project: ' + e.message);
+      setIsCreating(false);
+    }
   };
 
   const handleDelete = async (projectId, e) => {
@@ -126,10 +146,31 @@ export default function Dashboard() {
               className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all mb-4"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
+              required
             />
+            
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Brief del Proyecto (PDF/TXT)</label>
+              <input 
+                type="file" 
+                accept=".txt,.pdf"
+                onChange={e => setBriefFile(e.target.files[0])}
+                className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30 cursor-pointer"
+              />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-xs font-medium text-gray-400 mb-1">Investigación Profunda (PDF/TXT)</label>
+              <input 
+                type="file" 
+                accept=".txt,.pdf"
+                onChange={e => setResearchFile(e.target.files[0])}
+                className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-500/20 file:text-blue-300 hover:file:bg-blue-500/30 cursor-pointer"
+              />
+            </div>
           </div>
-          <button type="submit" className="w-full bg-white text-black font-semibold rounded-xl py-3 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors">
-            <PlusCircle size={20} /> Create Workspace
+          <button type="submit" disabled={isCreating} className="w-full bg-white text-black font-semibold rounded-xl py-3 flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors disabled:opacity-50">
+            {isCreating ? <span className="animate-pulse">Building Muse...</span> : <><PlusCircle size={20} /> Create Workspace</>}
           </button>
         </form>
 

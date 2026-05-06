@@ -8,6 +8,10 @@ const { OAuth2Client } = require('google-auth-library');
 const { GoogleGenAI } = require('@google/genai');
 const http = require('http');
 const { Server } = require('socket.io');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const app = express();
 const server = http.createServer(app);
@@ -34,7 +38,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send_chat', async (data) => {
-    const { projectId, content, userId } = data;
+    const { projectId, content, userId, mode = 'exploracion' } = data;
     try {
       const userMsg = await prisma.message.create({
         data: { projectId, role: 'user', content, createdById: userId || null }
@@ -45,7 +49,33 @@ io.on('connection', (socket) => {
         where: { projectId }, orderBy: { createdAt: 'asc' }, take: 10
       });
       const formattedHistory = history.map(m => `${m.role === 'user' ? 'User' : 'Muse'}: ${m.content}`).join('\n');
-      const prompt = `Actúa como Muse, un colaborador creativo experto. Estamos conversando sobre un proyecto.\nHistorial de conversación:\n${formattedHistory}\n\nEl usuario acaba de decir: "${content}"\n\nTu tarea es responder al usuario de forma conversacional, amigable, concisa y usando Markdown (listas, negritas, etc) para organizar tus ideas.`;
+      
+      const coreRule = `REGLA DE ORO SUPREMA: Eres un Socio de Pensamiento (Thought Partner). NO propones ideas, NO inventas metáforas visuales, NO das ejemplos creativos ni haces el trabajo por el usuario. Tu ÚNICA función es ser un "frontón": escuchar lo que el usuario dice y responderle con preguntas socráticas, objeciones o cuestionamientos sobre SU idea para obligarlo a pensar más profundo.\n\n`;
+
+      let systemPrompt = '';
+      switch(mode) {
+        case 'confrontacion':
+          systemPrompt = coreRule + `Actúa en tu Fase de Confrontación (Abogado del Diablo) ⚔️. Tu objetivo es poner a prueba la fragilidad de las ideas del usuario. Sé crítico, punzante pero constructivo. Pregunta por qué importaría la idea, ataca los sesgos, busca el cliché y fuerza al usuario a argumentar y mejorar su idea. Prohibido ser complaciente.`;
+          break;
+        case 'polinizacion':
+          systemPrompt = coreRule + `Actúa en tu Fase de Polinización Cruzada (Síntesis) 🧬. Tu objetivo es proponer que el usuario combine elementos dispares. Sugiere fusiones improbables ("¿qué pasaría si unimos X con Y?") para que el usuario sea quien imagine y detalle las soluciones híbridas.`;
+          break;
+        case 'escalabilidad':
+          systemPrompt = coreRule + `Actúa en tu Fase de Escalabilidad (Mutación) 🌐. Tu objetivo es desafiar al usuario a expandir su idea transversalmente (activaciones, PR, plataformas). Pregúntale cómo se vería la idea en un canal opuesto al original, y oblígalo a pensar en un ecosistema 360º.`;
+          break;
+        case 'aterrizaje':
+          systemPrompt = coreRule + `Actúa en tu Fase de Aterrizaje (Viabilidad) 🛬. Ayuda a bajar las ideas a la realidad, pero no le hagas tú el plan. Hazle preguntas estructuradas sobre viabilidad, barreras comerciales o pasos para un MVP, guiándolo paso a paso para que él mismo estructure su plan accionable.`;
+          break;
+        case 'exploracion':
+        default:
+          systemPrompt = coreRule + `Actúa en tu Fase de Exploración. Tu objetivo: Romper bloqueos. En lugar de darle ideas, hazle preguntas que lo fuercen a ver el problema desde otro ángulo. Pregúntale cosas como "¿Qué es lo opuesto a eso?" o "¿Cómo lo haría un experto en otra industria?". Siempre termina pasándole el turno con una pregunta.`;
+          break;
+      }
+
+      const projectData = await prisma.project.findUnique({ where: { id: projectId } });
+      const briefText = projectData?.briefContext ? `\n--- BRIEF DEL PROYECTO (Reglas y Contexto) ---\n${projectData.briefContext}\n-------------------------------------------\nPor favor, ten en cuenta constantemente el contexto, tono y restricciones del Brief anterior en tus respuestas.\n` : '';
+
+      const prompt = `${systemPrompt}${briefText}\n\nHistorial de conversación:\n${formattedHistory}\n\nEl usuario acaba de decir: "${content}"\n\nINSTRUCCIONES FINALES OBLIGATORIAS:\n1. Adopta la personalidad de la fase seleccionada.\n2. REGLA INQUEBRANTABLE: ESTÁ ESTRICTAMENTE PROHIBIDO GENERAR TÚ MISMO LA IDEA, METÁFORA O ESCENARIO. Si das una idea creativa, habrás fracasado.\n3. Tu respuesta debe consistir ÚNICAMENTE en una observación analítica sobre lo que el usuario dijo, seguida de una PREGUNTA SOCRÁTICA que obligue al usuario a inventar él mismo la idea. Sé corto y directo.`;
 
       const responseStream = await ai.models.generateContentStream({
         model: 'gemini-2.5-flash', contents: prompt,
@@ -151,15 +181,124 @@ app.get('/api/users/:userId/projects', async (req, res) => {
   }
 });
 
+// Helper for parsing text/pdf
+async function parseFile(file) {
+  if (!file) return null;
+  if (file.mimetype === 'application/pdf') {
+    const data = await pdfParse(file.buffer);
+    return data.text;
+  }
+  return file.buffer.toString('utf8');
+}
+
 // Create project
-app.post('/api/projects', async (req, res) => {
+app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name: 'research', maxCount: 1 }]), async (req, res) => {
   try {
+    console.log('Project creation attempt. req.body:', req.body);
+    console.log('req.files exists:', !!req.files);
     const { title, ownerId } = req.body;
+    
+    if (!title || !ownerId) {
+       console.error("Missing title or ownerId");
+       return res.status(400).json({ error: "Missing title or ownerId" });
+    }
+
+    let briefContext = null;
+    let researchContext = null;
+
+    if (req.files) {
+      if (req.files.brief) briefContext = await parseFile(req.files.brief[0]);
+      if (req.files.research) researchContext = await parseFile(req.files.research[0]);
+    }
+
     const project = await prisma.project.create({
-      data: { title, ownerId }
+      data: { title, ownerId, briefContext }
     });
+
+    if (briefContext) {
+      const summaryPrompt = `Haz un resumen súper corto (2-3 oraciones) y con tono amigable del siguiente brief, presentándote como Muse y dándole la bienvenida al equipo al proyecto:\n\n${briefContext.substring(0, 5000)}`;
+      try {
+        const summaryRes = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: summaryPrompt });
+        await prisma.message.create({
+          data: { projectId: project.id, role: 'assistant', content: summaryRes.text }
+        });
+      } catch (e) {
+        console.error('Failed to generate brief summary message', e);
+      }
+    }
+
+    // If research exists, extract initial nodes via Gemini
+    if (researchContext) {
+      const prompt = `Eres un arquitecto de información. Extrae todos los nodos que consideres necesarios (pueden ser 15, 20 o más) para tener un volcado visual completo del siguiente texto de investigación profunda.
+
+IMPORTANTE: 
+1. TODOS los nombres de los nodos deben estar ESTRICTAMENTE EN ESPAÑOL.
+2. En lugar de un solo hub, crea 3 o 4 "hubs" temáticos (ej. "Data Points", "Ejemplos", "Contexto Cultural"). Conecta los nodos pequeños a su hub correspondiente para que formen "mini universos" separados.
+3. Si un nodo es un ejemplo, proyecto o video y conoces o puedes sugerir su URL real, inclúyela en el campo "url" del JSON.
+
+Texto de Investigación:
+${researchContext.substring(0, 15000)}
+
+Nombres cortos (1-5 palabras). IDs únicos tipo "n1", "n2".
+
+Devuelve ÚNICAMENTE JSON válido con esta estructura:
+{
+  "nodes": [
+    {"id":"n1","label":"Data Points"},
+    {"id":"n2","label":"Crecimiento del 70%", "url": "https://ejemplo.com"}
+  ],
+  "edges": [
+    {"source":"n1","target":"n2"}
+  ]
+}`;
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+        });
+        const jsonMatch = response.text.match(/```json([\s\S]*?)```/);
+        const parseTarget = jsonMatch ? jsonMatch[1] : response.text;
+        const parsed = JSON.parse(parseTarget.replace(/```/g, ''));
+        
+        const idMapping = {};
+        if (parsed.nodes && Array.isArray(parsed.nodes)) {
+          for (let i = 0; i < parsed.nodes.length; i++) {
+            const n = parsed.nodes[i];
+            const angle = (i / Math.max(parsed.nodes.length, 1)) * Math.PI * 2 + Math.random() * 0.5;
+            const radius = i === 0 ? 0 : 200 + Math.random() * 250;
+            const newNode = await prisma.node.create({
+              data: {
+                projectId: project.id,
+                label: n.label,
+                data: { author: 'MAGNUM', isMagnum: true, url: n.url },
+                positionX: Math.cos(angle) * radius,
+                positionY: Math.sin(angle) * radius,
+                type: i === 0 ? 'topic' : 'topic',
+                createdById: null,
+              }
+            });
+            idMapping[n.id] = newNode.id;
+          }
+        }
+        if (parsed.edges && Array.isArray(parsed.edges)) {
+          for (const e of parsed.edges) {
+            const srcId = idMapping[e.source];
+            const tgtId = idMapping[e.target];
+            if (srcId && tgtId && srcId !== tgtId) {
+              await prisma.edge.create({
+                data: { projectId: project.id, sourceId: srcId, targetId: tgtId }
+              });
+            }
+          }
+        }
+      } catch(e) {
+        console.error('Failed to parse initial research graph', e);
+      }
+    }
+
     res.json(project);
   } catch (error) {
+    console.error('Error creating project:', error);
     res.status(500).json({ error: 'Error creating project' });
   }
 });
@@ -241,35 +380,33 @@ ${formattedHistory}
 
 ${existingList}
 
-Tu tarea tiene 3 pasos:
+Tu tarea tiene 2 pasos:
 
-PASO 1 — CONCEPTO PRINCIPAL (id siempre "main"):
-Identifica el concepto que el usuario mencionó EXPLÍCITAMENTE por su nombre (ej: "señales de humo" → label "Señales de Humo"). Este es el hub central.
-Si ese concepto YA está en el mapa, omite el nodo "main" pero úsalo como referencia en edges con source = su label exacto.
+PASO 1 — CONCEPTOS NUEVOS (Nodos):
+Extrae todos los conceptos clave, analogías, ideas o ejemplos que hayan surgido en el ÚLTIMO intercambio de la conversación. 
+Crea los nodos necesarios (pueden ser 4, 6, 8 o más) para mapear toda la riqueza de lo discutido. NO te limites a solo 1 o 2.
+Si un concepto YA está en el mapa, NO lo vuelvas a crear como nodo.
 
-PASO 2 — HASTA 2 CONCEPTOS DERIVADOS (nuevos):
-Agrega máximo 2 conceptos secundarios nuevos que deriven del principal.
-Todos sus edges van DESDE "main" HACIA los derivados.
-
-PASO 3 — CONEXIONES SEMÁNTICAS CON NODOS EXISTENTES:
-Revisa los conceptos ya en el mapa: ${existingLabelsFormatted}
-Si el concepto principal (main) es semánticamente cercano a alguno de ellos, agrega un edge entre ellos. ESPECIALMENTE trata de conectar conceptos creados por diferentes usuarios si tienen sinergia.
-Usa el label EXACTO del nodo existente como valor de "source" o "target" en el edge.
-Puedes crear hasta 3 de estas conexiones cruzadas. No son obligatorias — solo si hay cercanía real.
+PASO 2 — CONEXIONES (Edges):
+- Conecta los conceptos nuevos entre sí para formar una red lógica.
+- CRÍTICO: Revisa los conceptos ya existentes en el mapa: ${existingLabelsFormatted}. Si algún concepto nuevo es una evolución, respuesta o está muy relacionado con un nodo existente, CREA UN EDGE cruzado. 
+- Usa el label EXACTO del nodo existente como "source" o "target" en el edge.
 
 Reglas:
-- Nombres MUY cortos (1-3 palabras). No repitas conceptos existentes.
-- Si no hay nada genuinamente nuevo, devuelve vacío.
+- TODOS los nombres de los nodos deben estar en ESPAÑOL.
+- Nombres cortos (1-5 palabras).
+- Si un concepto menciona un ejemplo real y conoces su URL, inclúyelo en el JSON como "url": "...".
+- Si no hay ideas nuevas reales en la charla, devuelve JSON vacío.
 
 Devuelve ÚNICAMENTE JSON válido:
 {
   "nodes": [
-    {"id":"main","label":"Señales de Humo"},
-    {"id":"d1","label":"Comunicación Ancestral"}
+    {"id":"n1","label":"Cápsula Cromática"},
+    {"id":"n2","label":"Tutoriales NYX"}
   ],
   "edges": [
-    {"source":"main","target":"d1"},
-    {"source":"main","target":"Telefonía"}
+    {"source":"n1","target":"n2"},
+    {"source":"n1","target":"[Nombre de un nodo existente si aplica]"}
   ]
 }
 Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
@@ -290,8 +427,8 @@ Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
       if (Array.isArray(parsed.edges)) extractedEdges = parsed.edges;
     } catch (e) { console.error('JSON parse error', e); }
 
-    // Hard cap: max 3 new nodes per extraction
-    extractedNodes = extractedNodes.slice(0, 3);
+    // Hard cap: max 10 new nodes per extraction to avoid absolute chaos
+    extractedNodes = extractedNodes.slice(0, 10);
 
     // Filter out any node whose label is too similar to an existing one
     const normalize = s => s.toLowerCase().replace(/[^a-záéíóúñ]/g, '');

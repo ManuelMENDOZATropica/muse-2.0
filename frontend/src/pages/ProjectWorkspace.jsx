@@ -36,6 +36,7 @@ export default function ProjectWorkspace() {
   const [colorVersion, setColorVersion] = useState(0);
   const [chatWidth, setChatWidth] = useState(400); // For resizable sidebar
   const [connectingNode, setConnectingNode] = useState(null);
+  const [museMode, setMuseMode] = useState('exploracion');
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
 
@@ -164,7 +165,7 @@ export default function ProjectWorkspace() {
     e.preventDefault();
     if (!input.trim()) return;
     setIsTyping(true);
-    socketRef.current.emit('send_chat', { projectId: id, content: input, userId: user?.id });
+    socketRef.current.emit('send_chat', { projectId: id, content: input, userId: user?.id, mode: museMode });
     setInput('');
   };
 
@@ -199,6 +200,11 @@ export default function ProjectWorkspace() {
 
   /* ── Handle Node Click ── */
   const handleNodeClick = useCallback(async (node) => {
+    if (!connectingNode && node.data?.url) {
+      window.open(node.data.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     if (connectingNode) {
       if (connectingNode.id !== node.id) {
         setIsTyping(true);
@@ -280,7 +286,21 @@ export default function ProjectWorkspace() {
             )}
             <div ref={messagesEndRef} />
           </div>
-          <div className="p-4 border-t border-white/5">
+          <div className="p-4 border-t border-white/5 flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400 font-medium">Fase Creativa:</span>
+              <select 
+                value={museMode} 
+                onChange={e => setMuseMode(e.target.value)}
+                className="bg-[#141414] border border-white/10 rounded-md text-xs text-gray-300 px-2 py-1.5 outline-none focus:border-purple-500 cursor-pointer"
+              >
+                <option value="exploracion">🌋 Exploración (Divergencia)</option>
+                <option value="confrontacion">⚔️ Confrontación (Abogado del Diablo)</option>
+                <option value="polinizacion">🧬 Polinización (Síntesis)</option>
+                <option value="escalabilidad">🌐 Escalabilidad (Mutación)</option>
+                <option value="aterrizaje">🛬 Aterrizaje (Viabilidad)</option>
+              </select>
+            </div>
             <form onSubmit={handleSend} className="relative">
               <textarea
                 value={input}

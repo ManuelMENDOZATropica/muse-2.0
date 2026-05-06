@@ -24,8 +24,9 @@ model Project {
   id          String   @id @default(uuid())
   title       String
   description String?
-  isPublic    Boolean  @default(true)
-  ownerId     String
+  isPublic     Boolean  @default(true)
+  briefContext String?
+  ownerId      String
   owner       User     @relation(fields: [ownerId], references: [id])
   nodes       Node[]
   edges       Edge[]
