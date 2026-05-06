@@ -43,10 +43,10 @@ io.on('connection', (socket) => {
       const userMsg = await prisma.message.create({
         data: { projectId, role: 'user', content, createdById: userId || null }
       });
-      io.to(projectId).emit('chat_chunk', { messageId: userMsg.id, role: 'user', content, isDone: true });
+      socket.emit('chat_chunk', { messageId: userMsg.id, role: 'user', content, isDone: true });
 
       const history = await prisma.message.findMany({
-        where: { projectId }, orderBy: { createdAt: 'asc' }, take: 10
+        where: { projectId, OR: [{ createdById: userId }, { createdById: null }] }, orderBy: { createdAt: 'asc' }, take: 10
       });
       const formattedHistory = history.map(m => `${m.role === 'user' ? 'User' : 'Muse'}: ${m.content}`).join('\n');
       
@@ -85,19 +85,19 @@ io.on('connection', (socket) => {
       let fullText = '';
       for await (const chunk of responseStream) {
         fullText += chunk.text;
-        io.to(projectId).emit('chat_chunk', { messageId: tempId, role: 'assistant', content: fullText, isDone: false });
+        socket.emit('chat_chunk', { messageId: tempId, role: 'assistant', content: fullText, isDone: false });
       }
 
       const aiMsg = await prisma.message.create({
-        data: { projectId, role: 'assistant', content: fullText }
+        data: { projectId, role: 'assistant', content: fullText, createdById: userId }
       });
-      io.to(projectId).emit('chat_chunk', { messageId: aiMsg.id, tempId, role: 'assistant', content: fullText, isDone: true });
+      socket.emit('chat_chunk', { messageId: aiMsg.id, tempId, role: 'assistant', content: fullText, isDone: true });
       
       // Trigger graph extraction
       socket.emit('trigger_extraction', { userId });
     } catch (e) {
       console.error(e);
-      io.to(projectId).emit('chat_chunk', { messageId: `err_${Date.now()}`, role: 'assistant', content: 'Lo siento, hubo un error.', isDone: true });
+      socket.emit('chat_chunk', { messageId: `err_${Date.now()}`, role: 'assistant', content: 'Lo siento, hubo un error.', isDone: true });
     }
   });
 });
@@ -231,34 +231,35 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
     if (researchContext) {
       const prompt = `Eres un arquitecto de información. Extrae todos los nodos que consideres necesarios (pueden ser 15, 20 o más) para tener un volcado visual completo del siguiente texto de investigación profunda.
 
-IMPORTANTE: 
-1. TODOS los nombres de los nodos deben estar ESTRICTAMENTE EN ESPAÑOL.
-2. En lugar de un solo hub, crea 3 o 4 "hubs" temáticos (ej. "Data Points", "Ejemplos", "Contexto Cultural"). Conecta los nodos pequeños a su hub correspondiente para que formen "mini universos" separados.
-3. Si un nodo es un ejemplo, proyecto o video y conoces o puedes sugerir su URL real, inclúyela en el campo "url" del JSON.
+ IMPORTANTE: 
+ 1. TODOS los nombres de los nodos deben estar ESTRICTAMENTE EN ESPAÑOL.
+ 2. En lugar de un solo hub, crea 3 o 4 "hubs" temáticos (ej. "Data Points", "Ejemplos", "Contexto Cultural"). Conecta los nodos pequeños a su hub correspondiente para que formen "mini universos" separados.
+ 3. EL TEXTO DE INVESTIGACIÓN CONTIENE MUCHOS ENLACES (URLs). Es OBLIGATORIO que no pierdas esta información. Rastrea todos los enlaces (http...) en el texto y ponlos en el campo "url" del nodo correspondiente.
+ 4. Añade un campo "description" con una explicación (1-2 oraciones) del contenido. Si extraes una URL, asegúrate de que el nodo capture de qué trata ese enlace.
 
-Texto de Investigación:
-${researchContext.substring(0, 15000)}
-
-Nombres cortos (1-5 palabras). IDs únicos tipo "n1", "n2".
-
-Devuelve ÚNICAMENTE JSON válido con esta estructura:
-{
-  "nodes": [
-    {"id":"n1","label":"Data Points"},
-    {"id":"n2","label":"Crecimiento del 70%", "url": "https://ejemplo.com"}
-  ],
-  "edges": [
-    {"source":"n1","target":"n2"}
-  ]
-}`;
+ Texto de Investigación:
+ ${researchContext.substring(0, 15000)}
+ 
+ Nombres cortos (1-5 palabras). IDs únicos tipo "n1", "n2".
+ 
+ Devuelve ÚNICAMENTE JSON válido con esta estructura:
+ {
+   "nodes": [
+     {"id":"n1","label":"Data Points"},
+     {"id":"n2","label":"Crecimiento del 70%", "description": "El mercado creció un 70% impulsado por...", "url": "https://ejemplo.com"}
+   ],
+   "edges": [
+     {"source":"n1","target":"n2"}
+   ]
+ }`;
       try {
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: prompt,
+          config: { responseMimeType: 'application/json' }
         });
-        const jsonMatch = response.text.match(/```json([\s\S]*?)```/);
-        const parseTarget = jsonMatch ? jsonMatch[1] : response.text;
-        const parsed = JSON.parse(parseTarget.replace(/```/g, ''));
+        const parseTarget = response.text;
+        const parsed = JSON.parse(parseTarget);
         
         const idMapping = {};
         if (parsed.nodes && Array.isArray(parsed.nodes)) {
@@ -270,7 +271,7 @@ Devuelve ÚNICAMENTE JSON válido con esta estructura:
               data: {
                 projectId: project.id,
                 label: n.label,
-                data: { author: 'MAGNUM', isMagnum: true, url: n.url },
+                data: { author: 'MAGNUM', isMagnum: true, url: n.url, description: n.description },
                 positionX: Math.cos(angle) * radius,
                 positionY: Math.sin(angle) * radius,
                 type: i === 0 ? 'topic' : 'topic',
@@ -331,12 +332,16 @@ app.delete('/api/projects/:id', async (req, res) => {
 // Get single project details (including nodes, edges, messages)
 app.get('/api/projects/:id', async (req, res) => {
   try {
+    const userId = req.query.userId;
     const project = await prisma.project.findUnique({
       where: { id: req.params.id },
       include: {
         nodes: true,
         edges: true,
-        messages: { orderBy: { createdAt: 'asc' } }
+        messages: { 
+          where: userId ? { OR: [{ createdById: userId }, { createdById: null }] } : undefined,
+          orderBy: { createdAt: 'asc' } 
+        }
       }
     });
     if (!project) return res.status(404).json({ error: 'Project not found' });
@@ -415,14 +420,13 @@ Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
+      config: { responseMimeType: 'application/json' }
     });
 
     let extractedNodes = [];
     let extractedEdges = [];
-    const jsonMatch = response.text.match(/```json([\s\S]*?)```/);
-    const parseTarget = jsonMatch ? jsonMatch[1] : response.text;
     try {
-      const parsed = JSON.parse(parseTarget.replace(/```/g, ''));
+      const parsed = JSON.parse(response.text);
       if (Array.isArray(parsed.nodes)) extractedNodes = parsed.nodes;
       if (Array.isArray(parsed.edges)) extractedEdges = parsed.edges;
     } catch (e) { console.error('JSON parse error', e); }

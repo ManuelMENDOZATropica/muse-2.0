@@ -125,55 +125,52 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-5xl mx-auto p-8 pt-20">
-      <div className="flex items-center gap-4 mb-16">
-        <div className="w-10 h-10 rounded-full border-[0.5px] border-white/20 flex items-center justify-center">
-          <Sparkles className="text-white w-4 h-4" />
+      <div className="flex items-center gap-4 mb-12">
+        <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-sm">
+          <Sparkles className="text-[#A1A1AA] w-5 h-5" />
         </div>
-        <h1 className="text-2xl font-bold uppercase tracking-[0.2em] text-white">
+        <h1 className="text-3xl font-semibold tracking-tight text-[#FAFAFA]">
           Welcome, {user.name}
         </h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Create New */}
-        <form onSubmit={handleCreate} className="bg-black border-[0.5px] border-white/20 p-8 flex flex-col justify-between hover:border-cyan-400 hover:bg-cyan-400/[0.02] transition-all group relative">
-          <div className="absolute top-0 right-0 w-3 h-3 border-t-[0.5px] border-r-[0.5px] border-white/40 m-2"></div>
-          <div className="absolute bottom-0 left-0 w-3 h-3 border-b-[0.5px] border-l-[0.5px] border-white/40 m-2"></div>
-          
+        <form onSubmit={handleCreate} className="bg-[#18181B]/40 border border-white/[0.08] rounded-2xl p-6 flex flex-col justify-between hover:bg-[#18181B]/60 transition-all group shadow-xl">
           <div>
-            <h2 className="text-sm uppercase tracking-widest font-semibold mb-2 text-white">New Project</h2>
-            <p className="text-gray-500 text-xs uppercase tracking-widest mb-8">Start a creative exploration</p>
+            <h2 className="text-lg font-semibold mb-1 text-[#FAFAFA] tracking-tight">New Project</h2>
+            <p className="text-[#A1A1AA] text-sm mb-6">Start a creative exploration</p>
             <input
               type="text"
-              placeholder="PROJECT NAME"
-              className="w-full bg-transparent border-b-[0.5px] border-white/20 px-0 py-3 text-white uppercase tracking-wider text-sm focus:outline-none focus:border-cyan-400 transition-colors mb-8 placeholder:text-white/20"
+              placeholder="Project Name..."
+              className="w-full bg-black/40 border border-white/[0.08] rounded-xl px-4 py-3 text-[#FAFAFA] text-sm focus:outline-none focus:border-white/20 transition-all mb-6 placeholder:text-[#52525B]"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               required
             />
             
-            <div className="mb-6">
-              <label className="block text-[10px] uppercase tracking-widest text-gray-500 mb-2">Brief del Proyecto (PDF/TXT)</label>
+            <div className="mb-5">
+              <label className="block text-xs font-medium text-[#A1A1AA] mb-2">Brief del Proyecto (PDF/TXT)</label>
               <input 
                 type="file" 
                 accept=".txt,.pdf"
                 onChange={e => setBriefFile(e.target.files[0])}
-                className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-[0.5px] file:border-white/20 file:bg-transparent file:text-white hover:file:bg-white/10 cursor-pointer transition-colors"
+                className="w-full text-xs text-[#A1A1AA] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-white/[0.06] file:text-[#E4E4E7] hover:file:bg-white/[0.1] cursor-pointer transition-colors"
               />
             </div>
 
             <div className="mb-8">
-              <label className="block text-[10px] uppercase tracking-widest text-gray-500 mb-2">Investigación Profunda (PDF/TXT)</label>
+              <label className="block text-xs font-medium text-[#A1A1AA] mb-2">Investigación Profunda (PDF/TXT)</label>
               <input 
                 type="file" 
                 accept=".txt,.pdf"
                 onChange={e => setResearchFile(e.target.files[0])}
-                className="w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-[0.5px] file:border-white/20 file:bg-transparent file:text-white hover:file:bg-white/10 cursor-pointer transition-colors"
+                className="w-full text-xs text-[#A1A1AA] file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-white/[0.06] file:text-[#E4E4E7] hover:file:bg-white/[0.1] cursor-pointer transition-colors"
               />
             </div>
           </div>
-          <button type="submit" disabled={isCreating} className="w-full border-[0.5px] border-white/40 bg-transparent text-white uppercase tracking-widest text-[10px] rounded-full py-3 hover:bg-white hover:text-black transition-colors disabled:opacity-50">
-            {isCreating ? <span className="animate-pulse">INITIALIZING...</span> : 'CREATE WORKSPACE'}
+          <button type="submit" disabled={isCreating} className="w-full bg-[#FAFAFA] text-black font-medium text-sm rounded-xl py-3 hover:bg-[#E4E4E7] transition-colors disabled:opacity-50 shadow-sm flex items-center justify-center gap-2">
+            {isCreating ? <span className="animate-pulse">Initializing...</span> : <><PlusCircle size={18} /> Create Workspace</>}
           </button>
         </form>
 
@@ -184,10 +181,8 @@ export default function Dashboard() {
             <div
               key={p.id}
               onClick={() => renamingId !== p.id && navigate(`/project/${p.id}`)}
-              className="bg-black border-[0.5px] border-white/20 p-8 cursor-pointer hover:border-cyan-400 hover:bg-cyan-400/[0.02] transition-all group relative overflow-hidden flex flex-col justify-between"
+              className="bg-[#18181B]/40 border border-white/[0.08] rounded-2xl p-6 cursor-pointer hover:bg-[#18181B]/60 hover:border-white/[0.12] transition-all group relative flex flex-col justify-between shadow-xl"
             >
-              <div className="absolute top-0 right-0 w-3 h-3 border-t-[0.5px] border-r-[0.5px] border-white/40 m-2"></div>
-              <div className="absolute bottom-0 left-0 w-3 h-3 border-b-[0.5px] border-l-[0.5px] border-white/40 m-2"></div>
 
               {/* ··· menu button */}
               <button
@@ -220,7 +215,7 @@ export default function Dashboard() {
               )}
 
               <div>
-                <Folder className="text-white/40 mb-6" size={20} strokeWidth={1.5} />
+                <Folder className="text-[#A1A1AA] mb-4" size={24} strokeWidth={1.5} />
 
                 {renamingId === p.id ? (
                   <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
@@ -229,15 +224,15 @@ export default function Dashboard() {
                       value={renameValue}
                       onChange={e => setRenameValue(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleRename(p.id); if (e.key === 'Escape') setRenamingId(null); }}
-                      className="flex-1 bg-transparent border-b-[0.5px] border-cyan-400 px-0 py-1 text-white text-sm uppercase tracking-widest focus:outline-none"
+                      className="flex-1 bg-black/40 border border-[#A1A1AA] rounded-md px-2 py-1 text-[#FAFAFA] text-sm focus:outline-none"
                     />
-                    <button onClick={() => handleRename(p.id)} className="text-white hover:text-cyan-400"><Check size={14} /></button>
-                    <button onClick={() => setRenamingId(null)} className="text-gray-500 hover:text-white"><X size={14} /></button>
+                    <button onClick={() => handleRename(p.id)} className="text-emerald-400 hover:text-emerald-300"><Check size={16} /></button>
+                    <button onClick={() => setRenamingId(null)} className="text-[#A1A1AA] hover:text-white"><X size={16} /></button>
                   </div>
                 ) : (
-                  <h3 className="text-lg font-semibold uppercase tracking-widest mb-2 pr-6">{p.title}</h3>
+                  <h3 className="text-lg font-semibold text-[#FAFAFA] tracking-tight mb-1 pr-6">{p.title}</h3>
                 )}
-                <p className="text-[10px] uppercase tracking-widest text-gray-500 mt-2">UPDATED {new Date(p.updatedAt).toLocaleDateString()}</p>
+                <p className="text-xs text-[#52525B] mt-1">Updated {new Date(p.updatedAt).toLocaleDateString()}</p>
               </div>
 
               {/* Render contributors avatars at bottom right */}

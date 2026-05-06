@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, X, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import NetworkMap from '../components/NetworkMap';
 import { useAuth } from '../context/AuthContext';
@@ -36,6 +36,7 @@ export default function ProjectWorkspace() {
   const [colorVersion, setColorVersion] = useState(0);
   const [chatWidth, setChatWidth] = useState(400); // For resizable sidebar
   const [connectingNode, setConnectingNode] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null);
   const [museMode, setMuseMode] = useState('exploracion');
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
@@ -72,7 +73,7 @@ export default function ProjectWorkspace() {
 
   /* ── load and setup socket ── */
   useEffect(() => {
-    fetch(`${API_URL}/api/projects/${id}`)
+    fetch(`${API_URL}/api/projects/${id}?userId=${user.id}`)
       .then(r => r.json())
       .then(data => {
         setProject(data);
@@ -81,7 +82,7 @@ export default function ProjectWorkspace() {
           id: n.id, type: n.type || 'topic',
           position: { x: n.positionX, y: n.positionY },
           createdById: n.createdById || null,
-          data: { label: n.label },
+          data: { label: n.label, ...n.data },
         }));
         const e = (data.edges || []).map(e => ({
           id: e.id, source: e.sourceId, target: e.targetId, style: EDGE_STYLE,
@@ -200,8 +201,8 @@ export default function ProjectWorkspace() {
 
   /* ── Handle Node Click ── */
   const handleNodeClick = useCallback(async (node) => {
-    if (!connectingNode && node.data?.url) {
-      window.open(node.data.url, '_blank', 'noopener,noreferrer');
+    if (!connectingNode && (node.data?.url || node.data?.description)) {
+      setSelectedNode(node);
       return;
     }
 
@@ -230,15 +231,15 @@ export default function ProjectWorkspace() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-transparent" onClick={() => setMenu(null)}>
+    <div className="h-screen flex flex-col bg-[#0A0A0A]" onClick={() => setMenu(null)}>
       {/* Header */}
-      <header className="h-16 border-b-[0.5px] border-white/20 flex items-center px-6 shrink-0 bg-black/40 backdrop-blur-md z-10">
-        <Link to="/" className="text-gray-400 hover:text-cyan-400 transition-colors flex items-center gap-2 uppercase tracking-widest text-[10px]">
-          <ArrowLeft size={14} /> DASHBOARD
+      <header className="h-16 border-b border-white/[0.08] flex items-center px-6 shrink-0 bg-black/40 backdrop-blur-xl z-10">
+        <Link to="/" className="text-[#A1A1AA] hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
+          <ArrowLeft size={16} /> Dashboard
         </Link>
-        <div className="mx-auto flex items-center gap-3">
-          <span className="w-1.5 h-1.5 bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,210,255,0.8)]" />
-          <h1 className="uppercase tracking-[0.2em] text-xs font-bold text-white">{project.title}</h1>
+        <div className="mx-auto flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] px-4 py-1.5 rounded-full">
+          <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+          <h1 className="text-sm font-medium text-[#E4E4E7]">{project.title}</h1>
         </div>
         {/* User color picker — top right */}
         <UserColorPicker
@@ -249,31 +250,28 @@ export default function ProjectWorkspace() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* Chat */}
-        <div style={{ width: chatWidth }} className="shrink-0 border-r-[0.5px] border-white/20 flex flex-col bg-black/80 backdrop-blur-xl relative">
+        <div style={{ width: chatWidth }} className="shrink-0 border-r border-white/[0.08] flex flex-col bg-[#0A0A0A] relative">
           {/* Drag Handle */}
           <div 
             onMouseDown={startDrag} 
-            className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-cyan-400/50 z-50 transition-colors"
+            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 z-50 transition-colors"
           ></div>
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {messages.length === 0 && (
-              <div className="text-center text-gray-500 mt-10 uppercase tracking-widest text-[10px]">
-                SYSTEM READY. START EXPLORING.
+              <div className="text-center text-[#A1A1AA] mt-10 text-sm">
+                Welcome to Muse. Start exploring your project by typing below.
               </div>
             )}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] p-4 text-[13px] leading-relaxed relative group ${
+                <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[14px] leading-relaxed shadow-sm ${
                   m.role === 'user'
-                    ? 'bg-transparent border-[0.5px] border-white/40 text-white font-mono tracking-wider'
-                    : 'bg-cyan-400/[0.02] border-[0.5px] border-cyan-400/30 text-white font-sans'
+                    ? 'bg-[#27272A] text-[#FAFAFA] rounded-br-sm'
+                    : 'bg-white/[0.03] border border-white/[0.08] text-[#E4E4E7] rounded-bl-sm'
                 }`}>
-                  <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t-[0.5px] border-r-[0.5px] border-white/40 m-1 opacity-50"></div>
-                  <div className="absolute bottom-0 left-0 w-1.5 h-1.5 border-b-[0.5px] border-l-[0.5px] border-white/40 m-1 opacity-50"></div>
-                  
                   {m.role === 'user'
                     ? <div className="whitespace-pre-wrap">{m.content}</div>
-                    : <div className="[&>p]:mb-4 [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:mb-4 [&>strong]:text-cyan-400 [&>strong]:tracking-widest [&>strong]:uppercase">
+                    : <div className="[&>p]:mb-4 [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:mb-4 [&>strong]:text-white [&>strong]:font-semibold">
                         <ReactMarkdown>{m.content}</ReactMarkdown>
                       </div>
                   }
@@ -282,26 +280,26 @@ export default function ProjectWorkspace() {
             ))}
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-transparent border-[0.5px] border-cyan-400/50 px-5 py-3 flex items-center justify-center">
-                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
+                <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl rounded-bl-sm px-5 py-3 flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#A1A1AA]" />
                 </div>
               </div>
             )}
             <div ref={messagesEndRef} />
           </div>
-          <div className="p-4 border-t-[0.5px] border-white/20 flex flex-col gap-3 bg-black">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold">MODE:</span>
+          <div className="p-4 border-t border-white/[0.08] flex flex-col gap-3 bg-[#0A0A0A]">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-[#A1A1AA] font-medium">Mode:</span>
               <select 
                 value={museMode} 
                 onChange={e => setMuseMode(e.target.value)}
-                className="bg-transparent border-[0.5px] border-white/20 text-[10px] uppercase tracking-widest text-white px-2 py-1.5 outline-none focus:border-cyan-400 cursor-pointer appearance-none"
+                className="bg-white/[0.04] border border-white/[0.08] rounded-md text-xs text-[#E4E4E7] px-2 py-1.5 outline-none focus:border-white/20 cursor-pointer"
               >
-                <option value="exploracion">EXPLORATION</option>
-                <option value="confrontacion">CONFRONTATION</option>
-                <option value="polinizacion">POLLINATION</option>
-                <option value="escalabilidad">SCALABILITY</option>
-                <option value="aterrizaje">LANDING</option>
+                <option value="exploracion">🌋 Exploración</option>
+                <option value="confrontacion">⚔️ Confrontación</option>
+                <option value="polinizacion">🧬 Polinización</option>
+                <option value="escalabilidad">🌐 Escalabilidad</option>
+                <option value="aterrizaje">🛬 Aterrizaje</option>
               </select>
             </div>
             <form onSubmit={handleSend} className="relative">
@@ -309,12 +307,12 @@ export default function ProjectWorkspace() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (input.trim()) handleSend(e); } }}
-                placeholder="INPUT DATA (SHIFT+ENTER FOR NEW LINE)..."
-                className="w-full bg-transparent border-b-[0.5px] border-white/20 pl-0 pr-12 py-3 text-xs uppercase tracking-widest text-white focus:outline-none focus:border-cyan-400 transition-all resize-none placeholder:text-white/20"
+                placeholder="Ask Muse..."
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl pl-4 pr-12 py-3 text-sm text-[#E4E4E7] focus:outline-none focus:border-white/30 transition-all resize-none placeholder:text-[#52525B]"
                 rows="2"
               />
               <button disabled={isTyping || !input.trim()} type="submit"
-                className="absolute right-0 top-1/2 -translate-y-1/2 p-2 text-white/40 hover:text-cyan-400 disabled:opacity-50">
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[#A1A1AA] hover:text-white disabled:opacity-50">
                 <Send size={16} />
               </button>
             </form>
@@ -325,9 +323,9 @@ export default function ProjectWorkspace() {
         <div className="flex-1 relative overflow-hidden">
           {/* Connection Banner */}
           {connectingNode && (
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-cyan-400 text-black px-6 py-2 border-[0.5px] border-white shadow-[0_0_15px_rgba(0,210,255,0.5)] z-20 text-[10px] uppercase tracking-widest font-bold flex items-center gap-4">
-              <span>AWAITING CONNECTION TO "{connectingNode.label}"...</span>
-              <button onClick={() => setConnectingNode(null)} className="underline opacity-60 hover:opacity-100">ABORT</button>
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/20 text-blue-300 border border-blue-500/30 backdrop-blur-md px-5 py-2 rounded-full shadow-2xl z-20 text-sm font-medium animate-pulse flex items-center gap-3">
+              <span>Selecciona otro nodo para conectar con "{connectingNode.label}"...</span>
+              <button onClick={() => setConnectingNode(null)} className="underline opacity-80 hover:opacity-100 text-xs">Cancelar</button>
             </div>
           )}
 
@@ -344,29 +342,52 @@ export default function ProjectWorkspace() {
           {/* Context menu */}
           {menu && (
             <div
-              className="fixed z-50 bg-black border-[0.5px] border-cyan-400 shadow-[0_0_15px_rgba(0,210,255,0.15)] py-2 w-56 flex flex-col"
+              className="fixed z-50 bg-[#18181B] border border-white/[0.08] rounded-xl shadow-2xl py-2 w-56 flex flex-col overflow-hidden"
               style={{ top: menu.y, left: menu.x }}
               onClick={e => e.stopPropagation()}
             >
-              <div className="px-4 py-2 border-b-[0.5px] border-white/20 text-[10px] text-cyan-400 font-bold uppercase tracking-[0.2em] mb-1">
+              <div className="px-4 py-2 border-b border-white/[0.04] text-xs text-[#A1A1AA] font-semibold mb-1 truncate">
                 {menu.label}
               </div>
               <button
-                className="px-4 py-3 text-[10px] uppercase tracking-widest text-left text-gray-400 hover:bg-cyan-400/10 hover:text-cyan-400 transition-colors flex items-center gap-3"
+                className="px-4 py-2.5 text-sm text-left text-[#E4E4E7] hover:bg-white/[0.04] transition-colors flex items-center gap-3"
                 onClick={() => handleExpand(menu.id, menu.label, 'related')}
               >
-                <div className="w-1.5 h-1.5 border border-cyan-400" /> EXPLORE PARALLELS
+                <div className="w-2 h-2 rounded-full bg-purple-500" /> Ver similares
               </button>
               <button
-                className="px-4 py-3 text-[10px] uppercase tracking-widest text-left text-gray-400 hover:bg-cyan-400/10 hover:text-cyan-400 transition-colors flex items-center gap-3"
+                className="px-4 py-2.5 text-sm text-left text-[#E4E4E7] hover:bg-white/[0.04] transition-colors flex items-center gap-3"
                 onClick={() => { 
                   const nObj = nodes.find(n => n.id === menu.id);
                   setConnectingNode({ id: menu.id, label: menu.label, x: nObj?.position?.x || 0, y: nObj?.position?.y || 0 }); 
                   setMenu(null); 
                 }}
               >
-                <div className="w-1.5 h-1.5 bg-cyan-400" /> ESTABLISH LINK
+                <div className="w-2 h-2 rounded-full bg-blue-500" /> Conectar nodos
               </button>
+            </div>
+          )}
+
+          {/* Node Info Modal */}
+          {selectedNode && (
+            <div className="absolute bottom-6 right-6 w-80 bg-[#18181B]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl p-5 z-40 transform transition-all">
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-semibold text-[#FAFAFA] pr-4">{selectedNode.label}</h3>
+                <button onClick={() => setSelectedNode(null)} className="text-[#A1A1AA] hover:text-white p-1 rounded-full hover:bg-white/[0.05]">
+                  <X size={16} />
+                </button>
+              </div>
+              {selectedNode.data?.description && (
+                <p className="text-sm text-[#A1A1AA] mb-4 leading-relaxed">
+                  {selectedNode.data.description}
+                </p>
+              )}
+              {selectedNode.data?.url && (
+                <a href={selectedNode.data.url} target="_blank" rel="noopener noreferrer" 
+                   className="inline-flex items-center gap-2 text-xs font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-full transition-colors">
+                  <ExternalLink size={14} /> Visitar Enlace
+                </a>
+              )}
             </div>
           )}
         </div>

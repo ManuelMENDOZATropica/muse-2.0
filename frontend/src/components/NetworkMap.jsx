@@ -70,7 +70,7 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
             // Use centralized palette (reads from localStorage if user changed color)
             let palette = getUserPalette(uid);
             if (n.data?.isMagnum) {
-              palette = { name: 'MAGNUM', hub: '#ffffff', leaf: '#a3a3a3' };
+              palette = { name: 'MAGNUM', hub: '#e4007c', leaf: '#f472b6' };
             }
             const prev    = byId[n.id];
             if (prev) return { ...prev, label, degree: d, radius, palette, data: n.data };
@@ -177,15 +177,15 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
           p.text(`${zPct}%`, 16, p.height - 18);
 
           // Reset button
-          p.fill(0, 0, 0, 200);
-          p.stroke(0, 210, 255, 100);
-          p.strokeWeight(0.5);
-          p.rect(p.width - 76, p.height - 32, 64, 22);
+          p.fill(255, 255, 255, 15);
+          p.stroke(255, 255, 255, 30);
+          p.strokeWeight(1);
+          p.rect(p.width - 76, p.height - 32, 64, 22, 6);
           p.noStroke();
-          p.fill(0, 210, 255, 200);
+          p.fill(255, 255, 255, 200);
           p.textAlign(p.CENTER, p.CENTER);
-          p.textSize(8);
-          p.text('RESET', p.width - 44, p.height - 21);
+          p.textSize(10);
+          p.text('Reset', p.width - 44, p.height - 21);
         }
 
         /* ── physics ─────────────────────────────── */
@@ -261,35 +261,30 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
             const [lr,lg,lb] = hexRgb(leafHex);
 
             if (isHub) {
-              // Neon glow
-              if (hovered) {
-                p.noStroke(); p.fill(hr,hg,hb, 30);
-                p.ellipse(n.x, n.y, (n.radius+15)*2);
-              }
-              // circle outline
-              p.fill(0, 0, 0, 200); 
-              p.stroke(hr,hg,hb, 255); 
-              p.strokeWeight(1.5 / cam.z);
+              // outer glow
+              p.noStroke(); p.fill(hr,hg,hb, hovered ? 60 : 25);
+              p.ellipse(n.x, n.y, (n.radius+16)*2);
+              // circle
+              p.fill(hr,hg,hb, 230); 
+              p.stroke(255, 255, 255, 40);
+              p.strokeWeight(1/cam.z);
               p.ellipse(n.x, n.y, n.radius*2);
               
               // label inside
-              p.fill(255,255,255,235); p.noStroke();
+              p.fill(255,255,255,240); p.noStroke();
               p.textAlign(p.CENTER, p.CENTER);
-              p.textSize(Math.max(7, Math.min(10, n.radius/3)));
-              p.textStyle(p.NORMAL);
-              p.text(n.label.toUpperCase(), n.x, n.y);
+              p.textSize(Math.max(7, Math.min(12, n.radius/3)));
+              p.textStyle(p.BOLD);
+              p.text(n.label, n.x, n.y);
             } else {
-              // leaf outline
-              p.fill(0, 0, 0, 150);
-              p.stroke(lr,lg,lb, hovered ? 255 : 150);
-              p.strokeWeight(1 / cam.z);
+              // leaf dot
+              p.noStroke(); p.fill(lr,lg,lb, hovered ? 255 : 200);
               p.ellipse(n.x, n.y, n.radius * 2);
               // label
-              p.fill(lr,lg,lb, hovered ? 255 : 190);
-              p.noStroke();
+              p.fill(lr,lg,lb, hovered ? 255 : 200);
               p.textAlign(p.CENTER, p.TOP);
-              p.textSize(9); p.textStyle(p.NORMAL);
-              p.text(n.label.toUpperCase(), n.x, n.y+n.radius+6);
+              p.textSize(10); p.textStyle(p.NORMAL);
+              p.text(n.label, n.x, n.y+n.radius+5);
             }
             if (n.data?.url) {
               p.fill(255, 255, 255, 180);
@@ -301,8 +296,8 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
               p.fill(200, 200, 200, 255);
               p.noStroke();
               p.textAlign(p.CENTER, p.BOTTOM);
-              p.textSize(8); p.textStyle(p.NORMAL);
-              p.text(`POR ${n.data.author.toUpperCase()}`, n.x, n.y - (isHub ? n.radius + 15 : n.radius + 12));
+              p.textSize(9); p.textStyle(p.ITALIC);
+              p.text(`por ${n.data.author}`, n.x, n.y - (isHub ? n.radius + 18 : n.radius + 14));
             }
           });
         }
