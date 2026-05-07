@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Send, Loader2, X, ExternalLink, Sparkles, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, X, ExternalLink, Sparkles, MessageSquare, ChevronLeft, ChevronRight, Maximize2, Minimize2, Download } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import NetworkMap from '../components/NetworkMap';
 import { useAuth } from '../context/AuthContext';
@@ -33,12 +33,17 @@ export default function ProjectWorkspace() {
   const [menu,     setMenu]     = useState(null);
   const [nodes,    setNodes]    = useState([]);
   const [edges,    setEdges]    = useState([]);
-  const [colorVersion] = useState(0); // kept for NetworkMap prop compat
+  const [colorVersion] = useState(0);
   const [chatWidth, setChatWidth] = useState(400);
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+  const [presentationMode, setPresentationMode] = useState(false);
   const [connectingNode, setConnectingNode] = useState(null);
-  const [selectedNode, setSelectedNode] = useState(null); // for MAGNUM nodes with url/description
-  const [nodeModal, setNodeModal] = useState(null);       // for chat-generated nodes
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [nodeModal, setNodeModal] = useState(null);
   const [museMode, setMuseMode] = useState('exploracion');
+  const [activeUsers, setActiveUsers] = useState([]); // presence
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const exportRef = useRef(null); // callback from NetworkMap
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
 
@@ -95,7 +100,25 @@ export default function ProjectWorkspace() {
     // Setup Socket
     const socket = io(API_URL);
     socketRef.current = socket;
-    socket.emit('join_project', id);
+    socket.emit('join_project', {
+      projectId: id,
+      userId: user?.id,
+      userName: user?.name,
+      userAvatar: user?.avatar,
+    });
+
+    // Presence
+    socket.on('presence_list', (members) => setActiveUsers(members));
+    socket.on('user_presence', (data) => {
+      if (data.type === 'join') {
+        setActiveUsers(prev => [
+          ...prev.filter(u => u.userId !== data.userId),
+          { userId: data.userId, userName: data.userName, userAvatar: data.userAvatar }
+        ]);
+      } else {
+        setActiveUsers(prev => prev.filter(u => u.userId !== data.userId));
+      }
+    });
 
     socket.on('project_updated', (data) => {
       if (data.newMessages && data.newMessages.length) {
@@ -145,7 +168,36 @@ export default function ProjectWorkspace() {
     });
 
     return () => socket.disconnect();
-  }, [id, mergeGraph]);
+  }, [id, mergeGraph, user]);
+
+  // Show onboarding for empty projects after 1.5s
+  useEffect(() => {
+    if (!project) return;
+    const t = setTimeout(() => {
+      if (nodes.length === 0 && messages.length === 0) setShowOnboarding(true);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [project, nodes.length, messages.length]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === 'Escape') {
+        setMenu(null); setSelectedNode(null); setNodeModal(null);
+        setConnectingNode(null); setPresentationMode(false);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+        e.preventDefault();
+        setPresentationMode(v => !v);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+        e.preventDefault();
+        exportRef.current?.();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -256,83 +308,153 @@ export default function ProjectWorkspace() {
           <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
           <h1 className="text-sm font-medium text-[#E4E4E7]">{project.title}</h1>
         </div>
-        {/* Users legend — top right */}
-        <UsersLegend nodes={nodes} />
+        {/* Right: active users + tools */}
+        <div className="flex items-center gap-2">
+          {/* Active users */}
+          {activeUsers.length > 0 && (
+            <div className="flex items-center -space-x-1.5 mr-1">
+              {activeUsers.slice(0,4).map(u => (
+                <img key={u.userId}
+                  src={u.userAvatar || `https://ui-avatars.com/api/?name=${u.userName}&background=random`}
+                  alt={u.userName} title={`${u.userName} — en vivo`}
+                  className="w-6 h-6 rounded-full border-2 border-[#0A0A0A] ring-1 ring-emerald-400/40"
+                />
+              ))}
+              <span className="ml-2.5 text-[11px] text-emerald-400 font-medium">{activeUsers.length} en vivo</span>
+            </div>
+          )}
+          <UsersLegend nodes={nodes} />
+          {/* Export */}
+          <button onClick={() => exportRef.current?.()} title="Exportar mapa (Ctrl+E)"
+            className="p-2 rounded-lg text-[#52525B] hover:text-white hover:bg-white/[0.05] transition-colors">
+            <Download size={15} />
+          </button>
+          {/* Presentation mode */}
+          <button onClick={() => setPresentationMode(v => !v)} title="Modo presentación (Ctrl+P)"
+            className={`p-2 rounded-lg transition-colors ${
+              presentationMode ? 'text-white bg-white/[0.08]' : 'text-[#52525B] hover:text-white hover:bg-white/[0.05]'
+            }`}>
+            {presentationMode ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </button>
+          {/* Chat collapse */}
+          <button onClick={() => setChatCollapsed(v => !v)} title={chatCollapsed ? 'Mostrar chat' : 'Ocultar chat'}
+            className="p-2 rounded-lg text-[#52525B] hover:text-white hover:bg-white/[0.05] transition-colors">
+            {chatCollapsed ? <ChevronRight size={15} /> : <ChevronLeft size={15} />}
+          </button>
+        </div>
       </header>
 
+      {/* Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Chat */}
-        <div style={{ width: chatWidth }} className="shrink-0 border-r border-white/[0.08] flex flex-col bg-[#0A0A0A] relative">
-          {/* Drag Handle */}
-          <div 
-            onMouseDown={startDrag} 
-            className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 z-50 transition-colors"
-          ></div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            {messages.length === 0 && (
-              <div className="text-center text-[#A1A1AA] mt-10 text-sm">
-                Welcome to Muse. Start exploring your project by typing below.
-              </div>
+        {/* Chat sidebar — collapsible */}
+        {!presentationMode && (
+          <div
+            style={{ width: chatCollapsed ? 0 : chatWidth, minWidth: chatCollapsed ? 0 : 280 }}
+            className="shrink-0 border-r border-white/[0.08] flex flex-col bg-[#0A0A0A] relative overflow-hidden transition-all duration-300"
+          >
+            {/* Drag Handle */}
+            {!chatCollapsed && (
+              <div onMouseDown={startDrag}
+                className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 z-50 transition-colors" />
             )}
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[14px] leading-relaxed shadow-sm ${
-                  m.role === 'user'
-                    ? 'bg-[#27272A] text-[#FAFAFA] rounded-br-sm'
-                    : 'bg-white/[0.03] border border-white/[0.08] text-[#E4E4E7] rounded-bl-sm'
-                }`}>
-                  {m.role === 'user'
-                    ? <div className="whitespace-pre-wrap">{m.content}</div>
-                    : <div className="[&>p]:mb-4 [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:mb-4 [&>strong]:text-white [&>strong]:font-semibold">
-                        <ReactMarkdown>{m.content}</ReactMarkdown>
-                      </div>
-                  }
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {messages.length === 0 && (
+                <div className="text-center text-[#52525B] mt-12 space-y-2">
+                  <p className="text-sm">Comienza escribiendo una idea.</p>
+                  <p className="text-xs">Shift+Enter para nueva línea, Enter para enviar.</p>
                 </div>
-              </div>
-            ))}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl rounded-bl-sm px-5 py-3 flex items-center justify-center">
-                  <Loader2 className="w-4 h-4 animate-spin text-[#A1A1AA]" />
+              )}
+              {messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-2xl px-5 py-3.5 text-[14px] leading-relaxed shadow-sm ${
+                    m.role === 'user'
+                      ? 'bg-[#27272A] text-[#FAFAFA] rounded-br-sm'
+                      : 'bg-white/[0.03] border border-white/[0.08] text-[#E4E4E7] rounded-bl-sm'
+                  }`}>
+                    {m.role === 'user'
+                      ? <div className="whitespace-pre-wrap">{m.content}</div>
+                      : <div className="[&>p]:mb-4 [&>ul]:list-disc [&>ul]:ml-6 [&>ul]:mb-4 [&>strong]:text-white [&>strong]:font-semibold">
+                          <ReactMarkdown>{m.content}</ReactMarkdown>
+                        </div>
+                    }
+                  </div>
                 </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-          <div className="p-4 border-t border-white/[0.08] flex flex-col gap-3 bg-[#0A0A0A]">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs text-[#A1A1AA] font-medium">Mode:</span>
-              <select 
-                value={museMode} 
-                onChange={e => setMuseMode(e.target.value)}
-                className="bg-white/[0.04] border border-white/[0.08] rounded-md text-xs text-[#E4E4E7] px-2 py-1.5 outline-none focus:border-white/20 cursor-pointer"
-              >
-                <option value="exploracion">🌋 Exploración</option>
-                <option value="confrontacion">⚔️ Confrontación</option>
-                <option value="polinizacion">🧬 Polinización</option>
-                <option value="escalabilidad">🌐 Escalabilidad</option>
-                <option value="aterrizaje">🛬 Aterrizaje</option>
-              </select>
+              ))}
+              {isTyping && (
+                <div className="flex justify-start">
+                  <div className="bg-white/[0.03] border border-white/[0.08] rounded-2xl rounded-bl-sm px-5 py-3">
+                    <Loader2 className="w-4 h-4 animate-spin text-[#A1A1AA]" />
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
-            <form onSubmit={handleSend} className="relative">
-              <textarea
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (input.trim()) handleSend(e); } }}
-                placeholder="Ask Muse..."
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl pl-4 pr-12 py-3 text-sm text-[#E4E4E7] focus:outline-none focus:border-white/30 transition-all resize-none placeholder:text-[#52525B]"
-                rows="2"
-              />
-              <button disabled={isTyping || !input.trim()} type="submit"
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[#A1A1AA] hover:text-white disabled:opacity-50">
-                <Send size={16} />
-              </button>
-            </form>
+            <div className="p-4 border-t border-white/[0.08] flex flex-col gap-3 bg-[#0A0A0A]">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs text-[#A1A1AA] font-medium">Modo:</span>
+                <select value={museMode} onChange={e => setMuseMode(e.target.value)}
+                  className="bg-white/[0.04] border border-white/[0.08] rounded-md text-xs text-[#E4E4E7] px-2 py-1.5 outline-none focus:border-white/20 cursor-pointer">
+                  <option value="exploracion" title="Preguntas que rompen bloqueos">🌋 Exploración</option>
+                  <option value="confrontacion" title="Abogado del diablo — pone a prueba la idea">⚔️ Confrontación</option>
+                  <option value="polinizacion" title="Fusiones improbables entre conceptos">🧬 Polinización</option>
+                  <option value="escalabilidad" title="Desafía a expandir la idea">🌐 Escalabilidad</option>
+                  <option value="aterrizaje" title="Baja la idea a la realidad">🛬 Aterrizaje</option>
+                </select>
+              </div>
+              <form onSubmit={handleSend} className="relative">
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (input.trim()) handleSend(e); } }}
+                  placeholder="Escribe tu idea... (Enter para enviar)"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl pl-4 pr-12 py-3 text-sm text-[#E4E4E7] focus:outline-none focus:border-white/30 transition-all resize-none placeholder:text-[#3F3F46]"
+                  rows="2"
+                />
+                <button disabled={isTyping || !input.trim()} type="submit"
+                  title="Enviar (Enter)"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-[#A1A1AA] hover:text-white disabled:opacity-30 transition-colors">
+                  <Send size={16} />
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* p5 Map */}
+        {/* Map area */}
         <div className="flex-1 relative overflow-hidden">
+          {/* Onboarding overlay */}
+          {showOnboarding && nodes.length === 0 && (
+            <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+              <div className="text-center space-y-6 max-w-sm">
+                <div className="w-14 h-14 mx-auto rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center">
+                  <Sparkles size={22} className="text-[#52525B]" />
+                </div>
+                <div>
+                  <h2 className="text-base font-semibold text-[#A1A1AA] mb-2">El mapa está vacío</h2>
+                  <p className="text-sm text-[#52525B] leading-relaxed">
+                    Escribe una primera idea en el chat →<br />
+                    Muse la convertirá en nodos aquí.
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  {[
+                    { step: '1', label: 'Escribe una idea' },
+                    { step: '2', label: 'Muse pregunta' },
+                    { step: '3', label: 'El mapa crece' },
+                  ].map(s => (
+                    <div key={s.step} className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3">
+                      <div className="text-xs font-bold text-[#3F3F46] mb-1">{s.step}</div>
+                      <div className="text-[11px] text-[#52525B]">{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="pointer-events-auto text-xs text-[#3F3F46] hover:text-[#71717A] transition-colors underline"
+                  onClick={() => setShowOnboarding(false)}
+                >Entendido, cerrar</button>
+              </div>
+            </div>
+          )}
           {/* Connection Banner */}
           {connectingNode && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/20 text-blue-300 border border-blue-500/30 backdrop-blur-md px-5 py-2 rounded-full shadow-2xl z-20 text-sm font-medium animate-pulse flex items-center gap-3">
@@ -349,6 +471,7 @@ export default function ProjectWorkspace() {
             onNodeMove={handleNodeMove}
             currentUserId={user?.id}
             colorVersion={colorVersion}
+            onExportReady={(fn) => { exportRef.current = fn; }}
           />
 
           {/* Context menu */}

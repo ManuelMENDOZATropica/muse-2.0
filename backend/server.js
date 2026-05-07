@@ -21,10 +21,46 @@ const io = new Server(server, {
 
 // Real-time sockets
 io.on('connection', (socket) => {
-  socket.on('join_project', (projectId) => {
+  socket.on('join_project', (data) => {
+    // data can be a string (projectId) or { projectId, userId, userName, userAvatar }
+    const projectId = typeof data === 'string' ? data : data.projectId;
     socket.join(projectId);
+    socket._projectId = projectId;
+    if (data.userId) {
+      socket._userId = data.userId;
+      // Broadcast presence to others in room
+      socket.to(projectId).emit('user_presence', {
+        type: 'join',
+        userId: data.userId,
+        userName: data.userName,
+        userAvatar: data.userAvatar,
+      });
+      // Send current room members to the joining user
+      const roomSockets = io.sockets.adapter.rooms.get(projectId);
+      const members = [];
+      if (roomSockets) {
+        roomSockets.forEach(sid => {
+          const s = io.sockets.sockets.get(sid);
+          if (s && s._userId && s._userId !== data.userId) {
+            members.push({ userId: s._userId, userName: s._userName, userAvatar: s._userAvatar });
+          }
+        });
+      }
+      socket._userName = data.userName;
+      socket._userAvatar = data.userAvatar;
+      socket.emit('presence_list', members);
+    }
   });
-  
+
+  socket.on('disconnect', () => {
+    if (socket._projectId && socket._userId) {
+      socket.to(socket._projectId).emit('user_presence', {
+        type: 'leave',
+        userId: socket._userId,
+      });
+    }
+  });
+
   socket.on('node_moved', async (data) => {
     // data: { projectId, nodeId, positionX, positionY, isPinned }
     socket.to(data.projectId).emit('node_moved', data);
@@ -169,8 +205,10 @@ app.get('/api/users/:userId/projects', async (req, res) => {
       include: {
         owner: { select: { id: true, name: true, avatar: true } },
         nodes: {
-          include: { createdBy: { select: { id: true, name: true, avatar: true } } }
-        }
+          include: { createdBy: { select: { id: true, name: true, avatar: true } } },
+          take: 1, // just for contributors, don't need all
+        },
+        _count: { select: { nodes: true, messages: true } }
       },
       orderBy: { updatedAt: 'desc' }
     });

@@ -8,7 +8,7 @@ function hexRgb(hex) {
   return [parseInt(hex.slice(1,3),16), parseInt(hex.slice(3,5),16), parseInt(hex.slice(5,7),16)];
 }
 
-export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick, onNodeMove, currentUserId, colorVersion }) {
+export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick, onNodeMove, currentUserId, colorVersion, onExportReady }) {
   const containerRef = useRef(null);
   const graphRef     = useRef({ nodes: [], edges: [], dirty: false });
   const cbRightRef   = useRef(onNodeRightClick);
@@ -124,6 +124,13 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
           syncGraph();
           cam = { x: w/2, y: h/2, z: 1 };
           targetCam = { ...cam };
+
+          // Expose export function to parent
+          if (onExportReady) {
+            onExportReady(() => {
+              p.saveCanvas(`muse-map-${Date.now()}`, 'png');
+            });
+          }
         };
 
         p.windowResized = () => {
@@ -269,7 +276,6 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
               p.stroke(255, 255, 255, 40);
               p.strokeWeight(1/cam.z);
               p.ellipse(n.x, n.y, n.radius*2);
-              
               // label inside
               p.fill(255,255,255,240); p.noStroke();
               p.textAlign(p.CENTER, p.CENTER);
@@ -280,11 +286,18 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
               // leaf dot
               p.noStroke(); p.fill(lr,lg,lb, hovered ? 255 : 200);
               p.ellipse(n.x, n.y, n.radius * 2);
-              // label
-              p.fill(lr,lg,lb, hovered ? 255 : 200);
-              p.textAlign(p.CENTER, p.TOP);
-              p.textSize(10); p.textStyle(p.NORMAL);
-              p.text(n.label, n.x, n.y+n.radius+5);
+              // label with background (only when not too zoomed out)
+              if (cam.z > 0.3) {
+                const labelY = n.y + n.radius + 5;
+                const labelW = p.textWidth(n.label) + 8;
+                p.noStroke();
+                p.fill(6, 6, 10, hovered ? 200 : 140);
+                p.rect(n.x - labelW/2, labelY - 1, labelW, 13, 3);
+                p.fill(lr,lg,lb, hovered ? 255 : 180);
+                p.textAlign(p.CENTER, p.TOP);
+                p.textSize(10); p.textStyle(p.NORMAL);
+                p.text(n.label, n.x, labelY);
+              }
             }
             if (n.data?.url) {
               p.fill(255, 255, 255, 180);
