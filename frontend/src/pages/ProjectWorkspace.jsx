@@ -585,6 +585,7 @@ export default function ProjectWorkspace() {
                   <div
                     className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#111113] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden"
                     onClick={e => e.stopPropagation()}
+                    onMouseDown={e => e.stopPropagation()}
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">

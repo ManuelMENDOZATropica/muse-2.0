@@ -3,6 +3,9 @@
 :root {
   --background: #0A0A0A;
   --foreground: #e0e0e0;
+  --scrollbar-track: #111113;
+  --scrollbar-thumb: #27272A;
+  --scrollbar-thumb-hover: #3F3F46;
 }
 
 body {
@@ -13,4 +16,29 @@ body {
   position: relative;
 }
 
+/* ── Custom scrollbars (webkit) ── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
+}
 
+/* ── Firefox ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
