@@ -191,6 +191,26 @@ async function parseFile(file) {
   return file.buffer.toString('utf8');
 }
 
+// Pre-processes a research text to extract the bibliography as a map: { "3": "https://..." }
+function extractCitations(text) {
+  const citations = {};
+  // Find the bibliography section (common headers in Spanish/English)
+  const biblioMatch = text.match(/(?:Fuentes\s+citadas|Bibliograf[ií]a|Referencias|Sources|References)[:\s\n]+([\s\S]+)/i);
+  const biblioSection = biblioMatch ? biblioMatch[1] : text; // fallback to full text
+
+  // Match numbered entries like: "3. Title text, https://..."
+  // or "3. Title - https://..."
+  const lineRegex = /^(\d{1,3})\.\s+.{0,200}(https?:\/\/[^\s,;"'<>\)]+)/gm;
+  let match;
+  while ((match = lineRegex.exec(biblioSection)) !== null) {
+    const num = match[1];
+    const url = match[2].replace(/[.,;)"']+$/, ''); // strip trailing punctuation
+    citations[num] = url;
+  }
+  console.log(`[Citations] Extracted ${Object.keys(citations).length} citations from research document.`, citations);
+  return citations;
+}
+
 // Create project
 app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name: 'research', maxCount: 1 }]), async (req, res) => {
   try {
@@ -229,24 +249,32 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
 
     // If research exists, extract initial nodes via Gemini
     if (researchContext) {
+      // STEP 1: Pre-extract citations from the document (deterministic, no AI)
+      const citations = extractCitations(researchContext);
+      const citationCount = Object.keys(citations).length;
+      const citationsBlock = citationCount > 0
+        ? `\nDICCIONARIO DE CITAS (URLs reales extraídas del documento — ÚSA ESTAS Y SOLO ESTAS):\n${JSON.stringify(citations, null, 2)}\n`
+        : '';
+
+      // STEP 2: Build prompt with citation map injected
       const prompt = `Eres un arquitecto de información. Extrae todos los nodos que consideres necesarios (pueden ser 15, 20 o más) para tener un volcado visual completo del siguiente texto de investigación profunda.
 
  IMPORTANTE: 
  1. TODOS los nombres de los nodos deben estar ESTRICTAMENTE EN ESPAÑOL.
  2. En lugar de un solo hub, crea 3 o 4 "hubs" temáticos (ej. "Data Points", "Ejemplos", "Contexto Cultural"). Conecta los nodos pequeños a su hub correspondiente para que formen "mini universos" separados.
- 3. EL TEXTO DE INVESTIGACIÓN CONTIENE MUCHOS ENLACES (URLs). Es OBLIGATORIO que no pierdas esta información. Rastrea todos los enlaces (http...) en el texto y ponlos en el campo "url" del nodo correspondiente.
- 4. Añade un campo "description" con una explicación (1-2 oraciones) del contenido. Si extraes una URL, asegúrate de que el nodo capture de qué trata ese enlace.
+ 3. ENLACES (CRÍTICO): El texto menciona fuentes con números de cita (ej. "...mercado creció.6"). Tienes a tu disposición el DICCIONARIO DE CITAS de abajo, que mapea cada número a su URL real. Cuando crees un nodo para un concepto que tiene un número de cita cerca, busca ese número en el diccionario y pon su URL en el campo "url" del nodo. SOLO usa URLs del diccionario. Si el número no está en el diccionario, omite el campo "url".
+ 4. Añade un campo "description" con una explicación (1-2 oraciones) del contenido.${citationsBlock}
 
  Texto de Investigación:
- ${researchContext.substring(0, 15000)}
+ ${researchContext.substring(0, 12000)}
  
  Nombres cortos (1-5 palabras). IDs únicos tipo "n1", "n2".
  
  Devuelve ÚNICAMENTE JSON válido con esta estructura:
  {
    "nodes": [
-     {"id":"n1","label":"Data Points"},
-     {"id":"n2","label":"Crecimiento del 70%", "description": "El mercado creció un 70% impulsado por...", "url": "https://ejemplo.com"}
+     {"id":"n1","label":"Treatonomics", "description": "Tendencia de pequeños lujos...", "url": "https://kantar.com/..."},
+     {"id":"n2","label":"Data Points"}
    ],
    "edges": [
      {"source":"n1","target":"n2"}
