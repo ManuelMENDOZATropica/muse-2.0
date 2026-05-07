@@ -165,9 +165,10 @@ export default function ProjectWorkspace() {
   const [activeUsers, setActiveUsers] = useState([]); // presence
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showStarters, setShowStarters] = useState(false);
-  const exportRef = useRef(null); // callback from NetworkMap
+  const exportRef = useRef(null);
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   // live refs for callbacks
   const nodesRef = useRef([]); useEffect(() => { nodesRef.current = nodes; }, [nodes]);
@@ -604,7 +605,11 @@ export default function ProjectWorkspace() {
                         <button
                           key={i}
                           type="button"
-                          onClick={() => { setInput(starter); setShowStarters(false); }}
+                          onClick={() => {
+                            setInput(starter);
+                            setShowStarters(false);
+                            setTimeout(() => textareaRef.current?.focus(), 50);
+                          }}
                           className="text-left px-3 py-2.5 text-[11px] text-[#71717A] bg-[#111113] hover:bg-white/[0.04] hover:text-[#A1A1AA] transition-colors leading-snug"
                         >
                           {starter}
@@ -617,6 +622,7 @@ export default function ProjectWorkspace() {
 
               <form onSubmit={handleSend} className="relative">
                 <textarea
+                  ref={textareaRef}
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (input.trim()) handleSend(e); } }}
