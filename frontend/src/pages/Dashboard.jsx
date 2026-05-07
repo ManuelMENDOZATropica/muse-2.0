@@ -5,35 +5,34 @@ import {
   Plus, Folder, Sparkles, Trash2, Pencil, MoreVertical, Check, X,
   FileText, Network, MessageSquare, Clock, ChevronRight, Upload
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
 
-// ── Creation steps for loading overlay ───────────────────────────────────────
-const CREATION_STEPS = [
-  { id: 1, label: 'Creando proyecto...',         duration: 800  },
-  { id: 2, label: 'Leyendo documentos...',        duration: 3000 },
-  { id: 3, label: 'Extrayendo conceptos con IA...', duration: 8000 },
-  { id: 4, label: 'Construyendo mapa visual...',  duration: 4000 },
-  { id: 5, label: '¡Listo! Abriendo workspace...',duration: 800  },
-];
+// ── Creation overlay driven by real server events ────────────────────────────
+function CreationOverlay({ creationSocket, creationId }) {
+  const [steps, setSteps] = useState([
+    { id: 'init', label: 'Iniciando...', done: false, active: true }
+  ]);
+  const [progress, setProgress] = useState(5);
 
-function CreationOverlay({ hasResearch }) {
-  const [step, setStep] = useState(0);
   useEffect(() => {
-    const steps = hasResearch ? CREATION_STEPS : [CREATION_STEPS[0], CREATION_STEPS[4]];
-    let idx = 0;
-    const advance = () => {
-      if (idx < steps.length - 1) {
-        idx++;
-        setStep(idx);
-        setTimeout(advance, steps[idx].duration);
-      }
+    if (!creationSocket || !creationId) return;
+    const handler = ({ step, message }) => {
+      setSteps(prev => {
+        // Mark all previous as done, add new active
+        const updated = prev.map(s => ({ ...s, active: false, done: true }));
+        // Only add if not already there
+        const alreadyExists = updated.find(s => s.id === step);
+        if (alreadyExists) return prev;
+        return [...updated, { id: step, label: message, done: false, active: true }];
+      });
+      // Progress: steps 1-7, map to 0-95%
+      setProgress(Math.min(95, Math.round((step / 7) * 100)));
     };
-    setTimeout(advance, steps[0].duration);
-  }, [hasResearch]);
-
-  const steps = hasResearch ? CREATION_STEPS : [CREATION_STEPS[0], CREATION_STEPS[4]];
-  const progress = ((step + 1) / steps.length) * 100;
+    creationSocket.on('creation_progress', handler);
+    return () => creationSocket.off('creation_progress', handler);
+  }, [creationSocket, creationId]);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#050507]/95 backdrop-blur-xl flex items-center justify-center">
@@ -46,30 +45,25 @@ function CreationOverlay({ hasResearch }) {
           </div>
         </div>
 
-        {/* Steps */}
-        <div className="space-y-3">
-          {steps.map((s, i) => (
-            <div
-              key={s.id}
-              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-500 ${
-                i === step
-                  ? 'bg-white/[0.06] border border-white/[0.1]'
-                  : i < step
-                  ? 'opacity-40'
-                  : 'opacity-20'
+        {/* Steps — real events */}
+        <div className="space-y-2">
+          {steps.map((s) => (
+            <div key={s.id}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-400 ${
+                s.active ? 'bg-white/[0.06] border border-white/[0.1]' : s.done ? 'opacity-40' : 'opacity-20'
               }`}
             >
               <div className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-300 ${
-                i < step ? 'bg-emerald-400' : i === step ? 'bg-white animate-pulse' : 'bg-white/20'
+                s.done ? 'bg-emerald-400' : s.active ? 'bg-white animate-pulse' : 'bg-white/20'
               }`} />
-              <span className={`text-sm font-medium ${i === step ? 'text-[#FAFAFA]' : 'text-[#A1A1AA]'}`}>
-                {s.label}
-              </span>
+              <span className={`text-sm font-medium text-left ${
+                s.active ? 'text-[#FAFAFA]' : 'text-[#A1A1AA]'
+              }`}>{s.label}</span>
             </div>
           ))}
         </div>
 
-        {/* Progress bar */}
+        {/* Real progress bar */}
         <div className="h-0.5 bg-white/[0.06] rounded-full overflow-hidden">
           <div
             className="h-full bg-white/40 rounded-full transition-all duration-700"
@@ -188,7 +182,8 @@ export default function Dashboard() {
   const [projects, setProjects] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [hasResearch, setHasResearch] = useState(false);
+  const [creationSocket, setCreationSocket] = useState(null);
+  const [creationId, setCreationId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
@@ -211,13 +206,20 @@ export default function Dashboard() {
   }, []);
 
   const handleCreate = async ({ title, briefFile, researchFile }) => {
-    setHasResearch(!!researchFile);
     setShowModal(false);
+
+    // Generate unique creation ID and connect socket BEFORE the POST
+    const cid = `${user.id}_${Date.now()}`;
+    const sock = io(API_URL);
+    sock.emit('join_creation', cid);
+    setCreationId(cid);
+    setCreationSocket(sock);
     setIsCreating(true);
 
     const formData = new FormData();
     formData.append('title', title);
     formData.append('ownerId', user.id);
+    formData.append('creationId', cid);
     if (briefFile) formData.append('brief', briefFile);
     if (researchFile) formData.append('research', researchFile);
 
@@ -225,11 +227,14 @@ export default function Dashboard() {
       const res = await fetch(`${API_URL}/api/projects`, { method: 'POST', body: formData });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Failed'); }
       const newProject = await res.json();
-      setTimeout(() => navigate(`/project/${newProject.id}`), 500);
+      setTimeout(() => { sock.disconnect(); navigate(`/project/${newProject.id}`); }, 600);
     } catch(e) {
       console.error('Create error:', e);
       alert('Error al crear el proyecto: ' + e.message);
+      sock.disconnect();
       setIsCreating(false);
+      setCreationSocket(null);
+      setCreationId(null);
     }
   };
 
@@ -267,7 +272,7 @@ export default function Dashboard() {
   return (
     <>
       {/* Creation overlay */}
-      {isCreating && <CreationOverlay hasResearch={hasResearch} />}
+      {isCreating && <CreationOverlay creationSocket={creationSocket} creationId={creationId} />}
 
       {/* New project modal */}
       {showModal && <NewProjectModal onClose={() => setShowModal(false)} onCreate={handleCreate} />}

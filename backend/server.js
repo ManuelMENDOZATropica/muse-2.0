@@ -21,6 +21,10 @@ const io = new Server(server, {
 
 // Real-time sockets
 io.on('connection', (socket) => {
+  socket.on('join_creation', (creationId) => {
+    socket.join(`creation_${creationId}`);
+  });
+
   socket.on('join_project', (data) => {
     // data can be a string (projectId) or { projectId, userId, userName, userAvatar }
     const projectId = typeof data === 'string' ? data : data.projectId;
@@ -252,10 +256,12 @@ function extractCitations(text) {
 // Create project
 app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name: 'research', maxCount: 1 }]), async (req, res) => {
   try {
-    console.log('Project creation attempt. req.body:', req.body);
-    console.log('req.files exists:', !!req.files);
-    const { title, ownerId } = req.body;
-    
+    const { title, ownerId, creationId } = req.body;
+    // Helper to emit real-time progress to the waiting dashboard
+    const progress = (step, message) => {
+      if (creationId) io.to(`creation_${creationId}`).emit('creation_progress', { step, message });
+    };
+
     if (!title || !ownerId) {
        console.error("Missing title or ownerId");
        return res.status(400).json({ error: "Missing title or ownerId" });
@@ -265,15 +271,18 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
     let researchContext = null;
 
     if (req.files) {
+      progress(1, 'Leyendo documentos...');
       if (req.files.brief) briefContext = await parseFile(req.files.brief[0]);
       if (req.files.research) researchContext = await parseFile(req.files.research[0]);
     }
 
+    progress(2, 'Creando proyecto...');
     const project = await prisma.project.create({
       data: { title, ownerId, briefContext }
     });
 
     if (briefContext) {
+      progress(3, 'Analizando brief con IA...');
       const summaryPrompt = `Haz un resumen súper corto (2-3 oraciones) y con tono amigable del siguiente brief, presentándote como Muse y dándole la bienvenida al equipo al proyecto:\n\n${briefContext.substring(0, 5000)}`;
       try {
         const summaryRes = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: summaryPrompt });
@@ -287,6 +296,7 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
 
     // If research exists, extract initial nodes via Gemini
     if (researchContext) {
+      progress(4, 'Extrayendo referencias bibliográficas...');
       // STEP 1: Pre-extract citations from the document (deterministic, no AI)
       const citations = extractCitations(researchContext);
       const citationCount = Object.keys(citations).length;
@@ -318,6 +328,7 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
      {"source":"n1","target":"n2"}
    ]
  }`;
+      progress(5, 'Extrayendo conceptos con IA...');
       try {
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
@@ -326,6 +337,8 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
         });
         const parseTarget = response.text;
         const parsed = JSON.parse(parseTarget);
+        const nodeCount = parsed.nodes?.length ?? 0;
+        progress(6, `Construyendo mapa con ${nodeCount} nodos...`);
         
         const idMapping = {};
         if (parsed.nodes && Array.isArray(parsed.nodes)) {
@@ -363,6 +376,7 @@ app.post('/api/projects', upload.fields([{ name: 'brief', maxCount: 1 }, { name:
       }
     }
 
+    progress(7, '¡Listo! Abriendo workspace...');
     res.json(project);
   } catch (error) {
     console.error('Error creating project:', error);
