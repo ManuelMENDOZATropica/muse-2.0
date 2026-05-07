@@ -11,37 +11,125 @@ const EDGE_STYLE = { stroke: '#475569' };
 const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
 
 const MODES = [
-  {
-    id: 'exploracion',
-    icon: '🌋',
-    label: 'Explorar',
-    desc: 'Preguntas que rompen tu bloqueo mental',
-  },
-  {
-    id: 'confrontacion',
-    icon: '⚔️',
-    label: 'Desafiar',
-    desc: 'Muse juega al abogado del diablo con tu idea',
-  },
-  {
-    id: 'polinizacion',
-    icon: '🧬',
-    label: 'Conectar',
-    desc: 'Fusiona tu idea con algo inesperado',
-  },
-  {
-    id: 'escalabilidad',
-    icon: '🌐',
-    label: 'Expandir',
-    desc: '¿Cómo se ve esto en más canales y plataformas?',
-  },
-  {
-    id: 'aterrizaje',
-    icon: '🛬',
-    label: 'Aterrizar',
-    desc: 'Baja la idea a pasos y decisiones concretas',
-  },
+  { id: 'exploracion',   icon: '🌋', label: 'Explorar',  desc: 'Preguntas que rompen tu bloqueo mental' },
+  { id: 'confrontacion', icon: '⚔️', label: 'Desafiar',  desc: 'Muse juega al abogado del diablo con tu idea' },
+  { id: 'polinizacion',  icon: '🧬', label: 'Conectar',  desc: 'Fusiona tu idea con algo inesperado' },
+  { id: 'escalabilidad', icon: '🌐', label: 'Expandir',  desc: '¿Cómo se ve esto en más canales y plataformas?' },
+  { id: 'aterrizaje',   icon: '🛬', label: 'Aterrizar', desc: 'Baja la idea a pasos y decisiones concretas' },
 ];
+
+const MODE_STARTERS = {
+  exploracion: [
+    '¿Qué pasaría si lo opuesto fuera verdad?',
+    '¿Cómo lo resolvería alguien de otra industria?',
+    '¿Qué estamos dando por hecho?',
+    '¿Cuál es la versión más simple de esto?',
+    '¿Qué haría quien más odia esta idea?',
+    '¿Cómo se lo explicarías a un niño de 8 años?',
+    '¿Qué estarías evitando pensar?',
+    '¿Cuál es la pregunta que nadie ha hecho?',
+    '¿Qué pasaría si el problema fuera en realidad una ventaja?',
+    '¿Si tuvieras 10 veces menos recursos?',
+    '¿Cuál es el supuesto más viejo de este sector?',
+    '¿Desde qué perspectiva no lo has mirado aún?',
+    '¿Cuál es el elefante en la habitación?',
+    '¿Qué pasaría si lo empezaras por el final?',
+    '¿Qué hace que esto sea diferente a todo lo demás?',
+    '¿Qué problema más profundo hay detrás de este?',
+    '¿Si esto fuera un movimiento, cómo empezaría?',
+    '¿Qué te está deteniendo realmente?',
+    '¿Cuál es la versión más radical posible?',
+    '¿Qué parte de esto aún no has nombrado?',
+  ],
+  confrontacion: [
+    '¿Por qué alguien no haría esto?',
+    '¿Dónde está el cliché que aún no has visto?',
+    '¿Qué supuesto estás dando por hecho?',
+    '¿Quién se beneficiaría de que esto falle?',
+    '¿Cuál es el peor escenario posible?',
+    '¿Cuánto de esto ya existe?',
+    '¿Por qué ahora y no antes?',
+    '¿Para quién NO funciona esto?',
+    '¿Qué le falta de original?',
+    '¿Cuál es la crítica más dura que recibirías?',
+    '¿Qué prueba tienes de que esto funciona?',
+    '¿Dónde estás siendo demasiado optimista?',
+    '¿Cuál es el argumento en contra más fuerte?',
+    '¿Estás resolviendo el problema real?',
+    '¿Qué sacrificas al hacer esto?',
+    '¿Por qué debería importarle a alguien?',
+    '¿Qué tan diferente es esto realmente?',
+    '¿Dónde está tu punto ciego?',
+    '¿Qué evidencia contradice tu idea?',
+    '¿Qué pasaría si tu audiencia dice que no?',
+  ],
+  polinizacion: [
+    '¿Cuál es el concepto menos probable que conectaría?',
+    '¿Qué disciplina nunca pensarías usar aquí?',
+    '¿Dónde existe esta tensión en la naturaleza?',
+    '¿Qué tiene esto en común con la música?',
+    '¿Cuál es el opuesto conceptual de tu idea?',
+    '¿Dónde más existe este mismo conflicto?',
+    '¿Desde qué mundo nadie lo ha pensado aún?',
+    '¿Qué pasaría si lo cruzaras con algo invisible?',
+    '¿Qué tienen en común tus dos ideas más distintas?',
+    '¿Dónde colisionan dos mundos que no deberían?',
+    '¿Qué analogía de otro siglo aplicaría aquí?',
+    '¿Qué pasaría si lo miraras desde la biología?',
+    '¿Cuál es el ritual equivalente en otra cultura?',
+    '¿Qué tiene esto en común con un videojuego?',
+    '¿Desde la física, cómo se llamaría este fenómeno?',
+    '¿Qué mundo te parece más lejano a esto?',
+    '¿Qué tiene en común esto con otra industria?',
+    '¿Qué pasaría si lo miraras desde la arquitectura?',
+    '¿Cuál es la metáfora más inesperada que aplica?',
+    '¿Qué territorio conceptual te da más miedo explorar?',
+  ],
+  escalabilidad: [
+    '¿Cómo se vería esto en 10 años?',
+    '¿Qué pasaría si tu audiencia fuera la opuesta?',
+    '¿Cómo cambiaría en otro país o cultura?',
+    '¿Qué pasa si lo escalas x100?',
+    '¿Cómo se ve en el canal que más te asusta?',
+    '¿Qué cambiaría si fuera para otra generación?',
+    '¿Cómo se vería en el contexto más extremo?',
+    '¿Qué parte podría vivir sola como proyecto?',
+    '¿Dónde no has pensado que esto podría vivir?',
+    '¿Cómo cambia si el contexto es el opuesto al original?',
+    '¿Qué pasaría si lo redujeras a su mínima expresión?',
+    '¿Qué parte de esto trasciende el proyecto?',
+    '¿Dónde más podría generar conversación?',
+    '¿Qué pasaría si lo lanzaras antes de tenerlo listo?',
+    '¿Cómo se vería en el mundo físico vs digital?',
+    '¿Qué pasaría si tu competencia lo hiciera primero?',
+    '¿En qué contexto esto sería completamente diferente?',
+    '¿Qué parte de esto es universal?',
+    '¿Qué audiencia completamente distinta lo amaría?',
+    '¿Cómo cambia la idea si el presupuesto es ilimitado?',
+  ],
+  aterrizaje: [
+    '¿Cuál es el primer paso real que puedes dar hoy?',
+    '¿Qué necesitas que aún no tienes?',
+    '¿Quién tiene que decir que sí para que esto pase?',
+    '¿Cuál es la barrera más grande?',
+    '¿Qué tan lejos estás del primer prototipo?',
+    '¿Cuánto tiempo necesitarías realmente?',
+    '¿Qué decisión estás evitando tomar?',
+    '¿Cuál es la señal de que esto está funcionando?',
+    '¿Qué sacrificarías para que esto pase?',
+    '¿Qué estarías haciendo diferente la próxima semana?',
+    '¿Qué parte podrías probar con el menor recurso?',
+    '¿Cuál es la versión más pequeña que valdría la pena?',
+    '¿Qué conversación estás evitando tener?',
+    '¿Cuál es el riesgo real vs el percibido?',
+    '¿Qué pasaría si empezaras mañana sin todo listo?',
+    '¿Quién sería tu primer aliado?',
+    '¿Cuál es la señal de que vas por buen camino?',
+    '¿Qué estás sobrecomplicando?',
+    '¿Cuál es el costo de no hacer nada?',
+    '¿Qué aprendiste la última vez que intentaste algo así?',
+  ],
+};
 
 function edgeStyled(color) { return { stroke: color }; }
 
@@ -463,6 +551,24 @@ export default function ProjectWorkspace() {
                   </div>
                 ))}
               </div>
+
+              {/* Starter capsules — scrollable horizontal strip */}
+              <div className="overflow-x-auto pb-1 -mx-1 px-1"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                <div className="flex gap-1.5 w-max">
+                  {(MODE_STARTERS[museMode] || []).map((starter, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setInput(starter)}
+                      className="shrink-0 px-3 py-1.5 rounded-full text-[11px] text-[#52525B] border border-white/[0.06] bg-white/[0.02] hover:text-[#A1A1AA] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all duration-150 whitespace-nowrap"
+                    >
+                      {starter}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <form onSubmit={handleSend} className="relative">
                 <textarea
                   value={input}
