@@ -95,6 +95,10 @@ export default function ProjectWorkspace() {
         }));
         setNodes(mergeDegrees(n, e));
         setEdges(e);
+        // Show onboarding only for truly empty projects
+        if (n.length === 0 && (data.messages || []).length === 0) {
+          setShowOnboarding(true);
+        }
       });
 
     // Setup Socket
@@ -169,15 +173,6 @@ export default function ProjectWorkspace() {
 
     return () => socket.disconnect();
   }, [id, mergeGraph, user]);
-
-  // Show onboarding for empty projects after 1.5s
-  useEffect(() => {
-    if (!project) return;
-    const t = setTimeout(() => {
-      if (nodes.length === 0 && messages.length === 0) setShowOnboarding(true);
-    }, 1500);
-    return () => clearTimeout(t);
-  }, [project, nodes.length, messages.length]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -455,7 +450,17 @@ export default function ProjectWorkspace() {
               </div>
             </div>
           )}
-          {/* Connection Banner */}
+
+          {/* Right-click hint — shown when there are nodes */}
+          {nodes.length > 0 && (
+            <div className="absolute bottom-4 left-4 z-10 flex items-center gap-2 bg-white/[0.04] border border-white/[0.06] backdrop-blur-sm px-3 py-1.5 rounded-full pointer-events-none">
+              <span className="text-[10px] text-[#3F3F46]">Clic derecho en un nodo</span>
+              <span className="text-[10px] text-[#3F3F46]">→</span>
+              <span className="text-[10px] text-[#52525B]">Expandir · Conectar</span>
+            </div>
+          )}
+
+
           {connectingNode && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-500/20 text-blue-300 border border-blue-500/30 backdrop-blur-md px-5 py-2 rounded-full shadow-2xl z-20 text-sm font-medium animate-pulse flex items-center gap-3">
               <span>Selecciona otro nodo para conectar con "{connectingNode.label}"...</span>
