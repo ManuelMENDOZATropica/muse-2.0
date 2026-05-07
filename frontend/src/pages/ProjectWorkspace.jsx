@@ -8,8 +8,40 @@ import UsersLegend from '../components/UserColorPicker';
 import { io } from 'socket.io-client';
 
 const EDGE_STYLE = { stroke: '#475569' };
-
 const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
+
+const MODES = [
+  {
+    id: 'exploracion',
+    icon: '🌋',
+    label: 'Explorar',
+    desc: 'Preguntas que rompen tu bloqueo mental',
+  },
+  {
+    id: 'confrontacion',
+    icon: '⚔️',
+    label: 'Desafiar',
+    desc: 'Muse juega al abogado del diablo con tu idea',
+  },
+  {
+    id: 'polinizacion',
+    icon: '🧬',
+    label: 'Conectar',
+    desc: 'Fusiona tu idea con algo inesperado',
+  },
+  {
+    id: 'escalabilidad',
+    icon: '🌐',
+    label: 'Expandir',
+    desc: '¿Cómo se ve esto en más canales y plataformas?',
+  },
+  {
+    id: 'aterrizaje',
+    icon: '🛬',
+    label: 'Aterrizar',
+    desc: 'Baja la idea a pasos y decisiones concretas',
+  },
+];
 
 function edgeStyled(color) { return { stroke: color }; }
 
@@ -41,6 +73,7 @@ export default function ProjectWorkspace() {
   const [selectedNode, setSelectedNode] = useState(null);
   const [nodeModal, setNodeModal] = useState(null);
   const [museMode, setMuseMode] = useState('exploracion');
+  const [modeToast, setModeToast] = useState(null); // { label, desc }
   const [activeUsers, setActiveUsers] = useState([]); // presence
   const [showOnboarding, setShowOnboarding] = useState(false);
   const exportRef = useRef(null); // callback from NetworkMap
@@ -352,7 +385,19 @@ export default function ProjectWorkspace() {
               <div onMouseDown={startDrag}
                 className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-white/20 z-50 transition-colors" />
             )}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-6 space-y-6 relative">
+              {/* Mode change toast */}
+              {modeToast && (
+                <div className="sticky top-0 z-10 mb-2 flex items-center gap-2.5 bg-white/[0.05] border border-white/[0.08] backdrop-blur-sm px-4 py-2.5 rounded-xl text-xs animate-fade-in">
+                  <span className="text-base leading-none">{modeToast.icon}</span>
+                  <div>
+                    <span className="text-[#FAFAFA] font-semibold">{modeToast.label}</span>
+                    <span className="text-[#52525B] mx-1.5">—</span>
+                    <span className="text-[#71717A]">{modeToast.desc}</span>
+                  </div>
+                </div>
+              )}
+
               {messages.length === 0 && (
                 <div className="text-center text-[#52525B] mt-12 space-y-2">
                   <p className="text-sm">Comienza escribiendo una idea.</p>
@@ -385,16 +430,38 @@ export default function ProjectWorkspace() {
               <div ref={messagesEndRef} />
             </div>
             <div className="p-4 border-t border-white/[0.08] flex flex-col gap-3 bg-[#0A0A0A]">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs text-[#A1A1AA] font-medium">Modo:</span>
-                <select value={museMode} onChange={e => setMuseMode(e.target.value)}
-                  className="bg-white/[0.04] border border-white/[0.08] rounded-md text-xs text-[#E4E4E7] px-2 py-1.5 outline-none focus:border-white/20 cursor-pointer">
-                  <option value="exploracion" title="Preguntas que rompen bloqueos">🌋 Exploración</option>
-                  <option value="confrontacion" title="Abogado del diablo — pone a prueba la idea">⚔️ Confrontación</option>
-                  <option value="polinizacion" title="Fusiones improbables entre conceptos">🧬 Polinización</option>
-                  <option value="escalabilidad" title="Desafía a expandir la idea">🌐 Escalabilidad</option>
-                  <option value="aterrizaje" title="Baja la idea a la realidad">🛬 Aterrizaje</option>
-                </select>
+              {/* Mode pills */}
+              <div className="flex flex-wrap gap-1.5 px-1">
+                {MODES.map(m => (
+                  <div key={m.id} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMuseMode(m.id);
+                        const found = MODES.find(x => x.id === m.id);
+                        setModeToast(found);
+                        clearTimeout(window._modeToastTimer);
+                        window._modeToastTimer = setTimeout(() => setModeToast(null), 2800);
+                      }}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium transition-all duration-200 ${
+                        museMode === m.id
+                          ? 'bg-white/[0.12] text-[#FAFAFA] border border-white/[0.2]'
+                          : 'bg-white/[0.03] text-[#52525B] border border-white/[0.06] hover:text-[#A1A1AA] hover:bg-white/[0.06]'
+                      }`}
+                    >
+                      <span>{m.icon}</span>
+                      <span>{m.label}</span>
+                    </button>
+                    {/* Tooltip */}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50
+                      opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200">
+                      <div className="bg-[#1a1a1d] border border-white/[0.1] rounded-lg px-3 py-2 text-[11px] text-[#A1A1AA] whitespace-nowrap shadow-xl">
+                        {m.desc}
+                      </div>
+                      <div className="w-2 h-2 bg-[#1a1a1d] border-r border-b border-white/[0.1] rotate-45 mx-auto -mt-1" />
+                    </div>
+                  </div>
+                ))}
               </div>
               <form onSubmit={handleSend} className="relative">
                 <textarea
