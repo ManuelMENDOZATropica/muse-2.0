@@ -356,6 +356,57 @@ app.delete('/api/projects/:id', async (req, res) => {
   }
 });
 
+// Node summary — AI-generated concept summary + conversation bullet points
+app.get('/api/nodes/:nodeId/summary', async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const node = await prisma.node.findUnique({ where: { id: nodeId } });
+    if (!node) return res.status(404).json({ error: 'Node not found' });
+
+    // If summary was pre-generated at creation time, return it immediately
+    if (node.data?.aiSummary && node.data?.bullets?.length) {
+      return res.json({ label: node.label, aiSummary: node.data.aiSummary, bullets: node.data.bullets });
+    }
+
+    // Fallback: generate on demand using stored triggerContext (or recent messages)
+    const chatContext = node.data?.triggerContext || (
+      await prisma.message.findMany({
+        where: { projectId: node.projectId, createdAt: { lte: node.createdAt } },
+        orderBy: { createdAt: 'desc' },
+        take: 2,
+      })
+    ).reverse().map(m => `${m.role === 'user' ? 'Usuario' : 'Muse'}: ${m.content}`).join('\n');
+
+    const summaryPrompt = `Eres un asistente de síntesis. El concepto "${node.label}" surgió en esta conversación:
+${chatContext || '(Sin contexto disponible)'}
+IMPORTANTE: El concepto es únicamente lo que se discutió en el Último intercambio. NO mezcles temas de turnos anteriores no relacionados.
+Genera DOS secciones en español como JSON:
+{"concept": "1 párrafo (2-3 oraciones) sobre qué es '${node.label}' en este contexto", "bullets": ["punto clave 1", "punto clave 2", "punto clave 3"]}`;
+
+    let aiSummary = '';
+    let bullets = [];
+    try {
+      const summaryRes = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: summaryPrompt,
+        config: { responseMimeType: 'application/json' }
+      });
+      const parsed = JSON.parse(summaryRes.text);
+      aiSummary = parsed.concept || '';
+      bullets = parsed.bullets || [];
+    } catch (e) {
+      console.error('Summary generation failed:', e);
+    }
+
+    res.json({ label: node.label, aiSummary, bullets });
+  } catch (error) {
+    console.error('Node summary error:', error);
+    res.status(500).json({ error: 'Failed to generate summary' });
+  }
+});
+
+
+
 
 // Get single project details (including nodes, edges, messages)
 app.get('/api/projects/:id', async (req, res) => {
@@ -421,14 +472,13 @@ Crea los nodos necesarios (pueden ser 4, 6, 8 o más) para mapear toda la riquez
 Si un concepto YA está en el mapa, NO lo vuelvas a crear como nodo.
 
 PASO 2 — CONEXIONES (Edges):
-- Conecta los conceptos nuevos entre sí para formar una red lógica.
-- CRÍTICO: Revisa los conceptos ya existentes en el mapa: ${existingLabelsFormatted}. Si algún concepto nuevo es una evolución, respuesta o está muy relacionado con un nodo existente, CREA UN EDGE cruzado. 
-- Usa el label EXACTO del nodo existente como "source" o "target" en el edge.
+- Conecta los conceptos nuevos entre sí SOLO si hay una relación EXPLÍCITA en la conversación (no inferida).
+- IMPORTANTE: Si en la conversación se hablaron de temas distintos de forma SEPARADA, NO los conectes entre sí. Los edges son conexiones reales, no asociaciones creativas.
+- SOLO crea edges entre nodos existentes y nuevos si el usuario o Muse los mencionó juntos explicitamente.
 
 Reglas:
 - TODOS los nombres de los nodos deben estar en ESPAÑOL.
 - Nombres cortos (1-5 palabras).
-- Si un concepto menciona un ejemplo real y conoces su URL, inclúyelo en el JSON como "url": "...".
 - Si no hay ideas nuevas reales en la charla, devuelve JSON vacío.
 
 Devuelve ÚNICAMENTE JSON válido:
@@ -438,11 +488,12 @@ Devuelve ÚNICAMENTE JSON válido:
     {"id":"n2","label":"Tutoriales NYX"}
   ],
   "edges": [
-    {"source":"n1","target":"n2"},
-    {"source":"n1","target":"[Nombre de un nodo existente si aplica]"}
+    {"source":"n1","target":"n2"}
   ]
 }
 Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
+
+
 
 
     const response = await ai.models.generateContent({
@@ -478,15 +529,21 @@ Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
       existingNodes.map(n => [n.label.toLowerCase(), n.id])
     );
 
+    // Helper: generate and store summary for a node in the background
+    const triggerContext = history.map(m => `${m.role === 'user' ? 'Usuario' : 'Muse'}: ${m.content}`).join('\n');
+
     for (let i = 0; i < extractedNodes.length; i++) {
       const n = extractedNodes[i];
-      const angle = (i / Math.max(extractedNodes.length, 1)) * Math.PI * 2 + Math.random() * 0.4;
-      const radius = 300 + Math.random() * 150;
+      // Spread new nodes outward with larger radius and consistent angular spacing + jitter
+      const baseAngle = (i / Math.max(extractedNodes.length, 1)) * Math.PI * 2;
+      const jitter = (Math.random() - 0.5) * 0.8;
+      const angle = baseAngle + jitter;
+      const radius = 500 + Math.random() * 300;
       const newNode = await prisma.node.create({
         data: {
           projectId,
           label: n.label,
-          data: {},
+          data: { triggerContext }, // store trigger context for instant summary on click
           positionX: Math.cos(angle) * radius,
           positionY: Math.sin(angle) * radius,
           type: 'topic',
@@ -495,6 +552,23 @@ Si no hay nada nuevo: {"nodes":[],"edges":[]}`;
       });
       idMapping[n.id] = newNode.id;
       createdNodes.push(newNode);
+
+      // Pre-generate summary in background (fire-and-forget)
+      (async () => {
+        try {
+          const sp = `Eres un asistente de síntesis. El concepto "${n.label}" surgió en esta conversación:
+${triggerContext}
+IMPORTANTE: El concepto es únicamente lo que se discutías en el Último intercambio. NO mezcles temas de turnos anteriores no relacionados.
+Genera DOS secciones en español como JSON:
+{"concept": "1 párrafo (2-3 oraciones) sobre qué es '${n.label}' en este contexto", "bullets": ["punto clave 1", "punto clave 2", "punto clave 3"]}`;
+          const sr = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: sp, config: { responseMimeType: 'application/json' } });
+          const parsed = JSON.parse(sr.text);
+          await prisma.node.update({
+            where: { id: newNode.id },
+            data: { data: { triggerContext, aiSummary: parsed.concept || '', bullets: parsed.bullets || [] } }
+          });
+        } catch(e) { /* silent fail, will generate on demand */ }
+      })();
     }
 
     for (const e of extractedEdges) {

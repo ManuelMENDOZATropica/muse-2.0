@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Send, Loader2, X, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, X, ExternalLink, Sparkles, MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import NetworkMap from '../components/NetworkMap';
 import { useAuth } from '../context/AuthContext';
-import UserColorPicker from '../components/UserColorPicker';
+import UsersLegend from '../components/UserColorPicker';
 import { io } from 'socket.io-client';
 
 const EDGE_STYLE = { stroke: '#475569' };
@@ -33,10 +33,11 @@ export default function ProjectWorkspace() {
   const [menu,     setMenu]     = useState(null);
   const [nodes,    setNodes]    = useState([]);
   const [edges,    setEdges]    = useState([]);
-  const [colorVersion, setColorVersion] = useState(0);
-  const [chatWidth, setChatWidth] = useState(400); // For resizable sidebar
+  const [colorVersion] = useState(0); // kept for NetworkMap prop compat
+  const [chatWidth, setChatWidth] = useState(400);
   const [connectingNode, setConnectingNode] = useState(null);
-  const [selectedNode, setSelectedNode] = useState(null);
+  const [selectedNode, setSelectedNode] = useState(null); // for MAGNUM nodes with url/description
+  const [nodeModal, setNodeModal] = useState(null);       // for chat-generated nodes
   const [museMode, setMuseMode] = useState('exploracion');
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
@@ -201,11 +202,6 @@ export default function ProjectWorkspace() {
 
   /* ── Handle Node Click ── */
   const handleNodeClick = useCallback(async (node) => {
-    if (!connectingNode && (node.data?.url || node.data?.description)) {
-      setSelectedNode(node);
-      return;
-    }
-
     if (connectingNode) {
       if (connectingNode.id !== node.id) {
         setIsTyping(true);
@@ -222,6 +218,25 @@ export default function ProjectWorkspace() {
         finally { setIsTyping(false); }
       } else {
         setConnectingNode(null);
+      }
+      return;
+    }
+
+    // MAGNUM nodes (from research doc) — show url/description modal
+    if (node.data?.isMagnum && (node.data?.url || node.data?.description)) {
+      setSelectedNode(node);
+      return;
+    }
+
+    // Chat-generated nodes — fetch AI summary + origin messages
+    if (!node.data?.isMagnum) {
+      setNodeModal({ label: node.label, loading: true });
+      try {
+        const res = await fetch(`${API_URL}/api/nodes/${node.id}/summary`);
+        const data = await res.json();
+        setNodeModal({ ...data, loading: false });
+      } catch(e) {
+        setNodeModal({ label: node.label, aiSummary: 'No se pudo generar el resumen.', originMessages: [], loading: false });
       }
     }
   }, [connectingNode, id, mergeGraph]);
@@ -241,11 +256,8 @@ export default function ProjectWorkspace() {
           <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
           <h1 className="text-sm font-medium text-[#E4E4E7]">{project.title}</h1>
         </div>
-        {/* User color picker — top right */}
-        <UserColorPicker
-          user={user}
-          onColorChange={() => setColorVersion(v => v + 1)}
-        />
+        {/* Users legend — top right */}
+        <UsersLegend nodes={nodes} />
       </header>
 
       <div className="flex-1 flex overflow-hidden">
@@ -368,9 +380,9 @@ export default function ProjectWorkspace() {
             </div>
           )}
 
-          {/* Node Info Modal */}
+          {/* MAGNUM Node Info Modal (url/description) */}
           {selectedNode && (
-            <div className="absolute bottom-6 right-6 w-80 bg-[#18181B]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl p-5 z-40 transform transition-all">
+            <div className="absolute bottom-6 right-6 w-80 bg-[#18181B]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl p-5 z-40">
               <div className="flex justify-between items-start mb-3">
                 <h3 className="font-semibold text-[#FAFAFA] pr-4">{selectedNode.label}</h3>
                 <button onClick={() => setSelectedNode(null)} className="text-[#A1A1AA] hover:text-white p-1 rounded-full hover:bg-white/[0.05]">
@@ -378,16 +390,62 @@ export default function ProjectWorkspace() {
                 </button>
               </div>
               {selectedNode.data?.description && (
-                <p className="text-sm text-[#A1A1AA] mb-4 leading-relaxed">
-                  {selectedNode.data.description}
-                </p>
+                <p className="text-sm text-[#A1A1AA] mb-4 leading-relaxed">{selectedNode.data.description}</p>
               )}
               {selectedNode.data?.url && (
-                <a href={selectedNode.data.url} target="_blank" rel="noopener noreferrer" 
+                <a href={selectedNode.data.url} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-2 text-xs font-medium text-blue-400 hover:text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-full transition-colors">
                   <ExternalLink size={14} /> Visitar Enlace
                 </a>
               )}
+            </div>
+          )}
+
+          {/* Chat-node Modal (AI summary + origin messages) */}
+          {nodeModal && (
+            <div className="absolute bottom-6 right-6 w-96 max-h-[70vh] bg-[#18181B]/95 backdrop-blur-xl border border-white/[0.08] rounded-2xl shadow-2xl z-40 flex flex-col overflow-hidden">
+              {/* Header */}
+              <div className="flex justify-between items-center px-5 py-4 border-b border-white/[0.06] shrink-0">
+                <h3 className="font-semibold text-[#FAFAFA] text-sm truncate pr-4">{nodeModal.label}</h3>
+                <button onClick={() => setNodeModal(null)} className="text-[#A1A1AA] hover:text-white p-1 rounded-full hover:bg-white/[0.05] shrink-0">
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 p-5 space-y-4">
+                {nodeModal.loading ? (
+                  <div className="flex items-center gap-3 text-[#A1A1AA] text-sm">
+                    <Loader2 size={16} className="animate-spin" /> Generando resumen...
+                  </div>
+                ) : (
+                  <>
+                    {/* AI Summary */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[10px] text-[#A1A1AA] uppercase tracking-widest font-semibold">
+                        <Sparkles size={10} /> Concepto
+                      </div>
+                      <p className="text-sm text-[#E4E4E7] leading-relaxed">{nodeModal.aiSummary}</p>
+                    </div>
+
+                    {/* Conversation bullets */}
+                    {nodeModal.bullets?.length > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1.5 text-[10px] text-[#A1A1AA] uppercase tracking-widest font-semibold">
+                          <MessageSquare size={10} /> Cómo surgió
+                        </div>
+                        <ul className="space-y-1.5">
+                          {nodeModal.bullets.map((b, i) => (
+                            <li key={i} className="flex items-start gap-2 text-xs text-[#A1A1AA] leading-relaxed">
+                              <span className="text-[#52525B] mt-0.5 shrink-0">•</span>
+                              <span>{b}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
