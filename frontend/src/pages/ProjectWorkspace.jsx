@@ -164,6 +164,7 @@ export default function ProjectWorkspace() {
   const [modeToast, setModeToast] = useState(null); // { label, desc }
   const [activeUsers, setActiveUsers] = useState([]); // presence
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showStarters, setShowStarters] = useState(false);
   const exportRef = useRef(null); // callback from NetworkMap
   const isDraggingSidebar = useRef(false);
   const messagesEndRef = useRef(null);
@@ -295,12 +296,13 @@ export default function ProjectWorkspace() {
     return () => socket.disconnect();
   }, [id, mergeGraph, user]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts + close starters on Escape
   useEffect(() => {
     const handler = (e) => {
       if (e.key === 'Escape') {
         setMenu(null); setSelectedNode(null); setNodeModal(null);
         setConnectingNode(null); setPresentationMode(false);
+        setShowStarters(false);
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
         e.preventDefault();
@@ -314,6 +316,15 @@ export default function ProjectWorkspace() {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, []);
+
+  // Close starters panel on click outside
+  useEffect(() => {
+    if (!showStarters) return;
+    const handler = () => setShowStarters(false);
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [showStarters]);
+
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -552,21 +563,56 @@ export default function ProjectWorkspace() {
                 ))}
               </div>
 
-              {/* Starter capsules — scrollable horizontal strip */}
-              <div className="overflow-x-auto pb-1 -mx-1 px-1"
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div className="flex gap-1.5 w-max">
-                  {(MODE_STARTERS[museMode] || []).map((starter, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => setInput(starter)}
-                      className="shrink-0 px-3 py-1.5 rounded-full text-[11px] text-[#52525B] border border-white/[0.06] bg-white/[0.02] hover:text-[#A1A1AA] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all duration-150 whitespace-nowrap"
-                    >
-                      {starter}
-                    </button>
-                  ))}
-                </div>
+              {/* Starters panel: button + floating grid */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowStarters(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium transition-all duration-200 ${
+                    showStarters
+                      ? 'bg-white/[0.08] text-[#A1A1AA] border border-white/[0.15]'
+                      : 'bg-white/[0.02] text-[#3F3F46] border border-white/[0.05] hover:text-[#71717A] hover:bg-white/[0.04]'
+                  }`}
+                >
+                  <span>💡</span>
+                  <span>Detonadores</span>
+                  <span className="text-[10px] opacity-50">20</span>
+                </button>
+
+                {/* Floating panel */}
+                {showStarters && (
+                  <div
+                    className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#111113] border border-white/[0.08] rounded-2xl shadow-2xl overflow-hidden"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
+                      <span className="text-[11px] font-semibold text-[#52525B] uppercase tracking-wider">
+                        {MODES.find(m => m.id === museMode)?.icon} {MODES.find(m => m.id === museMode)?.label}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowStarters(false)}
+                        className="text-[#3F3F46] hover:text-[#71717A] transition-colors"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                    {/* 2-column grid — all 20 visible with scroll if needed */}
+                    <div className="grid grid-cols-2 gap-px bg-white/[0.04] max-h-64 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                      {(MODE_STARTERS[museMode] || []).map((starter, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => { setInput(starter); setShowStarters(false); }}
+                          className="text-left px-3 py-2.5 text-[11px] text-[#71717A] bg-[#111113] hover:bg-white/[0.04] hover:text-[#A1A1AA] transition-colors leading-snug"
+                        >
+                          {starter}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <form onSubmit={handleSend} className="relative">
