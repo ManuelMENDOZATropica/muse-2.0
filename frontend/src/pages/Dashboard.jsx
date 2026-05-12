@@ -160,14 +160,22 @@ function NewProjectModal({ onClose, onCreate }) {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
-            <button type="button" onClick={onClose}
-              className="flex-1 py-3 text-sm font-medium text-[#A1A1AA] border border-white/[0.08] rounded-xl hover:bg-white/[0.04] transition-colors">
-              Cancelar
-            </button>
+          <div className="flex flex-col gap-3 pt-4">
             <button type="submit" disabled={!title.trim()}
-              className="flex-1 py-3 text-sm font-medium bg-[#FAFAFA] text-black rounded-xl hover:bg-[#E4E4E7] transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
-              <Plus size={15} /> Crear workspace
+              className="w-full py-3 text-sm font-medium bg-[#FAFAFA] text-black rounded-xl hover:bg-[#E4E4E7] transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+              <Plus size={15} /> Crear Workspace
+            </button>
+            
+            <button type="button" 
+              disabled={!title.trim()}
+              onClick={(e) => { e.preventDefault(); if (title.trim()) onCreate({ title, briefFile: null, researchFile: null }); }}
+              className="w-full py-3 text-sm font-medium bg-black/20 text-[#A1A1AA] border border-white/[0.08] rounded-xl hover:bg-white/[0.04] hover:text-white transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+              <Plus size={15} /> Crear vacío (Sin docs)
+            </button>
+
+            <button type="button" onClick={onClose}
+              className="w-full py-2 mt-2 text-xs font-medium text-[#52525B] hover:text-[#A1A1AA] transition-colors">
+              Cancelar
             </button>
           </div>
         </form>
