@@ -11,6 +11,7 @@ const EDGE_STYLE = { stroke: '#475569' };
 const API_URL = import.meta.env.VITE_API_URL || 'https://muse-2-0.onrender.com';
 
 const MODES = [
+  { id: 'libre',         icon: '💬', label: 'Conversar', desc: 'Charla natural y fluida con Muse, sin forzar preguntas' },
   { id: 'exploracion',   icon: '🌋', label: 'Explorar',  desc: 'Preguntas que rompen tu bloqueo mental' },
   { id: 'confrontacion', icon: '⚔️', label: 'Desafiar',  desc: 'Muse juega al abogado del diablo con tu idea' },
   { id: 'polinizacion',  icon: '🧬', label: 'Conectar',  desc: 'Fusiona tu idea con algo inesperado' },
@@ -19,6 +20,13 @@ const MODES = [
 ];
 
 const MODE_STARTERS = {
+  libre: [
+    '¿Qué opinas de lo que llevamos hasta ahora?',
+    'Ayúdame a organizar estas ideas dispersas.',
+    'Hablemos un poco sobre la propuesta de valor.',
+    '¿Cómo ves la viabilidad de este concepto?',
+    'Profundicemos en el trasfondo de esta idea.',
+  ],
   exploracion: [
     '¿Qué pasaría si lo opuesto fuera verdad?',
     '¿Cómo lo resolvería alguien de otra industria?',
