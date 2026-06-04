@@ -289,7 +289,7 @@ export default function Dashboard() {
         {/* Top bar */}
         <header className="sticky top-0 z-10 border-b border-white/[0.06] bg-[#0A0A0A]/80 backdrop-blur-xl">
           <div className="max-w-5xl mx-auto px-8 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 ml-12">
               <div className="w-7 h-7 rounded-lg bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
                 <Sparkles size={13} className="text-[#A1A1AA]" />
               </div>

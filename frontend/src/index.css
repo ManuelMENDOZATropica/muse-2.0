@@ -42,3 +42,170 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
+
+/* ── Light Mode Custom Styles & Variable Overrides ── */
+body.light-mode {
+  --background: #ffffff;
+  --foreground: #18181b;
+  --scrollbar-track: #f4f4f5;
+  --scrollbar-thumb: #d4d4d8;
+  --scrollbar-thumb-hover: #a1a1aa;
+  background-color: #ffffff;
+  color: #18181b;
+}
+
+body.light-mode {
+  /* Set all main backgrounds to white! */
+  .bg-\[\#0a0a0a\],
+  .bg-\[\#0A0A0A\],
+  .bg-\[\#050505\],
+  .bg-black\/20,
+  .bg-black\/40 {
+    background-color: #ffffff !important;
+  }
+
+  .bg-\[\#0A0A0A\]\/80,
+  .bg-black\/20.backdrop-blur-md,
+  .bg-black\/40.backdrop-blur-xl {
+    background-color: rgba(255, 255, 255, 0.8) !important;
+  }
+
+  .bg-\[\#050507\]\/95 {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+  }
+
+  /* Cards, modals, sidebars, panels */
+  .bg-\[\#111113\],
+  .bg-\[\#141414\],
+  .bg-\[\#18181B\],
+  .bg-\[\#18181B\]\/95,
+  .bg-\[\#1a1a1a\],
+  .bg-\[\#1a1a1d\],
+  .bg-white\/\[0\.03\],
+  .bg-white\/\[0\.02\],
+  .bg-white\/\[0\.01\],
+  .bg-white\/\[0\.04\] {
+    background-color: #f4f4f5 !important;
+  }
+
+  /* Hover states */
+  .hover\:bg-\[\#18181B\]:hover,
+  .hover\:bg-white\/\[0\.02\]:hover,
+  .hover\:bg-white\/\[0\.03\]:hover,
+  .hover\:bg-white\/\[0\.04\]:hover,
+  .hover\:bg-white\/\[0\.06\]:hover,
+  .hover\:bg-white\/\[0\.05\]:hover,
+  .hover\:bg-white\/\[0\.1\]:hover {
+    background-color: #e4e4e7 !important;
+  }
+
+  /* Active states / selections */
+  .bg-white\/\[0\.06\] {
+    background-color: #e4e4e7 !important;
+  }
+  
+  .bg-\[\#27272A\], .bg-white\/\[0\.12\] {
+    background-color: #e4e4e7 !important;
+    color: #18181b !important;
+  }
+  
+  /* Text colors: white/light text to dark */
+  .text-white,
+  .text-\[\#FAFAFA\],
+  .text-\[\#E4E4E7\],
+  .text-gray-100,
+  .text-gray-200,
+  .text-gray-300 {
+    color: #18181b !important;
+  }
+
+  /* Muted text colors */
+  .text-gray-400,
+  .text-\[\#A1A1AA\] {
+    color: #52525b !important;
+  }
+
+  .text-gray-500,
+  .text-\[\#71717A\] {
+    color: #71717a !important;
+  }
+
+  .text-gray-600,
+  .text-\[\#52525B\],
+  .text-\[\#3F3F46\] {
+    color: #8e8e93 !important;
+  }
+
+  /* Hover text colors */
+  .hover\:text-white:hover {
+    color: #000000 !important;
+  }
+
+  /* Borders: white semi-transparent to dark semi-transparent */
+  .border-white\/5,
+  .border-white\/10,
+  .border-white\/\[0\.05\],
+  .border-white\/\[0\.06\],
+  .border-white\/\[0\.08\],
+  .border-white\/\[0\.15\],
+  .border-white\/\[0\.1\],
+  .border-white\/\[0\.2\] {
+    border-color: rgba(0, 0, 0, 0.08) !important;
+  }
+
+  /* Onboarding / specific items */
+  .border-dashed {
+    border-color: rgba(0, 0, 0, 0.15) !important;
+  }
+
+  /* Input fields */
+  input, textarea {
+    background-color: #ffffff !important;
+    color: #18181b !important;
+    border-color: rgba(0, 0, 0, 0.12) !important;
+  }
+  input::placeholder, textarea::placeholder {
+    color: #a1a1aa !important;
+  }
+  
+  /* Special buttons: Google login button, etc. */
+  .bg-white.text-gray-900 {
+    background-color: #18181b !important;
+    color: #ffffff !important;
+  }
+  .bg-white.text-gray-900:hover {
+    background-color: #27272a !important;
+  }
+
+  /* Primary white buttons (like "Nuevo proyecto", "Crear Workspace") */
+  .bg-\[\#FAFAFA\] {
+    background-color: #18181b !important;
+    color: #ffffff !important;
+  }
+  .hover\:bg-\[\#E4E4E7\]:hover {
+    background-color: #27272a !important;
+    color: #ffffff !important;
+  }
+
+  /* Secondary cancel buttons */
+  .bg-black\/20.text-\[\#A1A1AA\] {
+    background-color: #fafafa !important;
+    color: #18181b !important;
+  }
+
+  /* Modal background overlays */
+  .bg-black\/60 {
+    background-color: rgba(0, 0, 0, 0.4) !important;
+  }
+
+  /* Theme switch button overrides */
+  .light-mode-button {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    border-color: rgba(0, 0, 0, 0.1) !important;
+    color: #4f46e5 !important;
+  }
+  .light-mode-button:hover {
+    background-color: rgba(0, 0, 0, 0.1) !important;
+  }
+}
+

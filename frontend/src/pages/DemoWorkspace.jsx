@@ -313,7 +313,7 @@ export default function DemoWorkspace() {
     <div className="h-screen flex flex-col bg-[#050505]">
       {/* Header */}
       <header className="h-16 border-b border-white/5 flex items-center px-6 shrink-0 bg-black/20 backdrop-blur-md z-10">
-        <Link to="/" className="text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
+        <Link to="/" className="ml-12 text-gray-400 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
           <ArrowLeft size={16} /> Dashboard
         </Link>
 

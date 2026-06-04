@@ -437,7 +437,7 @@ export default function ProjectWorkspace() {
     <div className="h-screen flex flex-col bg-[#0A0A0A]" onClick={() => setMenu(null)}>
       {/* Header */}
       <header className="h-16 border-b border-white/[0.08] flex items-center px-6 shrink-0 bg-black/40 backdrop-blur-xl z-10">
-        <Link to="/" className="text-[#A1A1AA] hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
+        <Link to="/" className="ml-12 text-[#A1A1AA] hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
           <ArrowLeft size={16} /> Dashboard
         </Link>
         <div className="mx-auto flex items-center gap-3 bg-white/[0.04] border border-white/[0.08] px-4 py-1.5 rounded-full">

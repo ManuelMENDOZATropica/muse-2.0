@@ -150,46 +150,69 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
           cam.y += (targetCam.y - cam.y) * 0.1;
           cam.z += (targetCam.z - cam.z) * 0.1;
 
-          p.background(6, 6, 10);
-          drawGrid();
+          const isLight = document.body.classList.contains('light-mode');
+          if (isLight) {
+            p.background(255, 255, 255);
+          } else {
+            p.background(6, 6, 10);
+          }
+          drawGrid(isLight);
           applyForces();
 
           p.push();
           p.translate(cam.x, cam.y);
           p.scale(cam.z);
-          drawEdges();
-          drawNodes();
+          drawEdges(isLight);
+          drawNodes(isLight);
           p.pop();
 
-          drawHUD();
+          drawHUD(isLight);
         };
 
         /* ── dot grid (screen-space, no transform) ─ */
-        function drawGrid() {
+        function drawGrid(isLight) {
           const g = 28 * cam.z;
           const ox = ((cam.x % g) + g) % g;
           const oy = ((cam.y % g) + g) % g;
-          p.stroke(24, 26, 40); p.strokeWeight(1);
+          if (isLight) {
+            p.stroke(220, 220, 225);
+          } else {
+            p.stroke(24, 26, 40);
+          }
+          p.strokeWeight(1);
           for (let x = ox; x < p.width; x += g)
             for (let y = oy; y < p.height; y += g)
               p.point(x, y);
         }
 
         /* ── HUD: zoom level + reset button ─────── */
-        function drawHUD() {
+        function drawHUD(isLight) {
           const zPct = Math.round(cam.z * 100);
           p.noStroke();
-          p.fill(255, 255, 255, 80);
+          if (isLight) {
+            p.fill(30, 30, 30, 150);
+          } else {
+            p.fill(255, 255, 255, 80);
+          }
           p.textSize(11); p.textAlign(p.LEFT, p.CENTER); p.textStyle(p.NORMAL);
           p.text(`${zPct}%`, 16, p.height - 18);
 
           // Reset button
-          p.fill(255, 255, 255, 15);
-          p.stroke(255, 255, 255, 30);
+          if (isLight) {
+            p.fill(0, 0, 0, 8);
+            p.stroke(0, 0, 0, 20);
+          } else {
+            p.fill(255, 255, 255, 15);
+            p.stroke(255, 255, 255, 30);
+          }
           p.strokeWeight(1);
           p.rect(p.width - 76, p.height - 32, 64, 22, 6);
           p.noStroke();
-          p.fill(255, 255, 255, 200);
+          if (isLight) {
+            p.fill(40, 40, 40, 220);
+          } else {
+            p.fill(255, 255, 255, 200);
+          }
           p.textAlign(p.CENTER, p.CENTER);
           p.textSize(10);
           p.text('Reset', p.width - 44, p.height - 21);
@@ -242,20 +265,20 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
         }
 
         /* ── draw edges ──────────────────────────── */
-        function drawEdges() {
+        function drawEdges(isLight) {
           const byId = Object.fromEntries(sNodes.map(n => [n.id, n]));
           sEdges.forEach(e => {
             const a = byId[e.src], b = byId[e.tgt];
             if (!a || !b) return;
             // Edge color = source node's hub color, semi-transparent
             const [r,g,bv] = hexRgb(a.palette?.hub ?? '#475569');
-            p.stroke(r,g,bv, 120); p.strokeWeight(1.3/cam.z); p.noFill();
+            p.stroke(r,g,bv, isLight ? 90 : 120); p.strokeWeight(1.3/cam.z); p.noFill();
             p.line(a.x, a.y, b.x, b.y);
           });
         }
 
         /* ── draw nodes ──────────────────────────── */
-        function drawNodes() {
+        function drawNodes(isLight) {
           const mx = (p.mouseX - cam.x) / cam.z;
           const my = (p.mouseY - cam.y) / cam.z;
 
@@ -269,11 +292,15 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
 
             if (isHub) {
               // outer glow
-              p.noStroke(); p.fill(hr,hg,hb, hovered ? 60 : 25);
+              p.noStroke(); p.fill(hr,hg,hb, hovered ? (isLight ? 40 : 60) : (isLight ? 15 : 25));
               p.ellipse(n.x, n.y, (n.radius+16)*2);
               // circle
               p.fill(hr,hg,hb, 230); 
-              p.stroke(255, 255, 255, 40);
+              if (isLight) {
+                p.stroke(0, 0, 0, 20);
+              } else {
+                p.stroke(255, 255, 255, 40);
+              }
               p.strokeWeight(1/cam.z);
               p.ellipse(n.x, n.y, n.radius*2);
               // label inside
@@ -284,29 +311,51 @@ export default function NetworkMap({ nodes, edges, onNodeClick, onNodeRightClick
               p.text(n.label, n.x, n.y);
             } else {
               // leaf dot
-              p.noStroke(); p.fill(lr,lg,lb, hovered ? 255 : 200);
+              if (isLight) {
+                p.stroke(hr, hg, hb, hovered ? 180 : 100);
+                p.strokeWeight(1.2);
+              } else {
+                p.noStroke();
+              }
+              p.fill(lr,lg,lb, hovered ? 255 : 200);
               p.ellipse(n.x, n.y, n.radius * 2);
               // label with background (only when not too zoomed out)
               if (cam.z > 0.3) {
                 const labelY = n.y + n.radius + 5;
                 const labelW = p.textWidth(n.label) + 8;
                 p.noStroke();
-                p.fill(6, 6, 10, hovered ? 200 : 140);
+                if (isLight) {
+                  p.fill(240, 240, 245, hovered ? 240 : 190);
+                } else {
+                  p.fill(6, 6, 10, hovered ? 200 : 140);
+                }
                 p.rect(n.x - labelW/2, labelY - 1, labelW, 13, 3);
-                p.fill(lr,lg,lb, hovered ? 255 : 180);
+
+                // Text color: use hub color in light mode for contrast!
+                const textHex = isLight ? hubHex : leafHex;
+                const [tr, tg, tb] = hexRgb(textHex);
+                p.fill(tr, tg, tb, hovered ? 255 : 180);
                 p.textAlign(p.CENTER, p.TOP);
                 p.textSize(10); p.textStyle(p.NORMAL);
                 p.text(n.label, n.x, labelY);
               }
             }
             if (n.data?.url) {
-              p.fill(255, 255, 255, 180);
+              if (isLight) {
+                p.fill(0, 0, 0, 180);
+              } else {
+                p.fill(255, 255, 255, 180);
+              }
               p.textSize(10);
               p.textAlign(p.CENTER, p.BOTTOM);
               p.text("🔗", n.x, n.y - n.radius - 2);
             }
             if (hovered && n.data?.author) {
-              p.fill(200, 200, 200, 255);
+              if (isLight) {
+                p.fill(80, 80, 80, 255);
+              } else {
+                p.fill(200, 200, 200, 255);
+              }
               p.noStroke();
               p.textAlign(p.CENTER, p.BOTTOM);
               p.textSize(9); p.textStyle(p.ITALIC);
